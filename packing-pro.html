@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智装装箱 Pro v9.0 - 工业级安全重心监控与智能双模装车系统</title>
+    <title>智装装箱 Pro v9.1 - 工业级安全重心监控与智能双模装车系统</title>
     <!-- 引入外部库 CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -21,8 +21,8 @@
         .loading-overlay.active { display: flex; }
         
         /* 紧凑网格布局样式 */
-        .cargo-grid-row-container { display: grid; grid-template-columns: repeat(3, 1fr) 1.2fr 0.6fr; gap: 4px; align-items: center; }
-        .cargo-grid-row-box { display: grid; grid-template-columns: repeat(3, 1fr) 1.2fr 0.6fr; gap: 4px; align-items: center; }
+        .cargo-grid-row-container { display: grid; grid-template-columns: 0.8fr repeat(3, 1fr) 1.2fr 0.6fr; gap: 4px; align-items: center; }
+        .cargo-grid-row-box { display: grid; grid-template-columns: 0.8fr repeat(3, 1fr) 1.2fr 0.6fr; gap: 4px; align-items: center; }
         .input-compact { width: 100%; text-align: center; font-size: 11px; font-weight: bold; background: transparent; outline: none; border-radius: 4px; padding: 3px 0; }
         .input-compact:focus { background: white; box-shadow: 0 0 0 1px #3b82f6; }
         .tab-btn-active { background-color: #ffffff; color: #1e3a8a; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
@@ -36,7 +36,7 @@
             <div class="p-2 bg-blue-600 rounded-lg text-white"><i data-lucide="package-open"></i></div>
             <div>
                 <h1 class="text-lg font-bold tracking-tight text-slate-800 flex items-center gap-1.5">
-                    智装装箱 Pro <span class="text-blue-600 font-black">v9.0</span>
+                    智装装箱 Pro <span class="text-blue-600 font-black">v9.1</span>
                 </h1>
                 <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">智能双模物理重心与自适应Excel表格解析工具</p>
             </div>
@@ -104,7 +104,7 @@
                         </div>
                     </div>
 
-                    <!-- 升级：新增统一的全局膨胀保护尺寸设置区 -->
+                    <!-- 统一的全局膨胀保护尺寸设置区 -->
                     <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm space-y-3">
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
@@ -180,7 +180,7 @@
                 
                 <!-- 表头：根据模式动态提示 -->
                 <div id="cargoTableHeader" class="px-4 py-2 bg-slate-100 border-b border-slate-200 cargo-grid-row-container text-[9px] font-black text-slate-500 uppercase text-center">
-                    <div>长</div><div>宽</div><div>高</div><div>重量(kg)</div><div>堆叠</div>
+                    <div>工件代号</div><div>长</div><div>宽</div><div>高</div><div>重量(kg)</div><div>堆叠</div>
                 </div>
 
                 <div id="cargoContainer" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/40">
@@ -209,7 +209,7 @@
                 <h2 class="text-2xl font-black text-slate-800 mb-4">智能解析与起吊重心系统已就绪</h2>
                 <p class="text-slate-400 max-w-sm text-sm font-medium leading-relaxed">
                     系统支持货物三维重心自动解算，并针对工业包装设计了安全低重心排样算法。支持一键直接从 Excel 导入各种复杂规格。<br>
-                    <span class="text-[10px] uppercase font-bold text-blue-500 mt-3 bg-blue-50 px-3 py-1.5 rounded-full inline-block">v9.0 智能合并尺寸自适应解析内核</span>
+                    <span class="text-[10px] uppercase font-bold text-blue-500 mt-3 bg-blue-50 px-3 py-1.5 rounded-full inline-block">v9.1 智能合并尺寸自适应解析内核</span>
                 </p>
                 <button onclick="loadDemoData()" class="mt-4 text-xs font-bold text-blue-600 hover:underline">加载演示数据一试</button>
             </div>
@@ -253,7 +253,7 @@
                         </div>
                     </div>
 
-                    <!-- 安全重心与搬运点控制面板 (包含投影图及高度评价) -->
+                    <!-- 安全重心与搬运点控制面板 -->
                     <div id="safetyPanel" class="bg-slate-50 border border-slate-200 rounded-2xl p-3 mb-4">
                         <!-- 动态载入 -->
                     </div>
@@ -358,7 +358,7 @@
                 specSectionTitle.innerHTML = `<i data-lucide="truck" size="14"></i> 选定备选货柜型`;
                 
                 cargoTableHeader.innerHTML = `
-                    <div>长</div><div>宽</div><div>高</div><div>重量(kg)</div><div>堆叠</div>
+                    <div>工件代号</div><div>长</div><div>宽</div><div>高</div><div>重量(kg)</div><div>堆叠</div>
                 `;
                 
                 thSize.innerText = "零件尺寸 (cm)";
@@ -383,7 +383,7 @@
                 specSectionTitle.innerHTML = `<i data-lucide="box" size="14"></i> 自选包装规格/适配标准外箱`;
 
                 cargoTableHeader.innerHTML = `
-                    <div>长 (mm)</div><div>宽 (mm)</div><div>高 (mm)</div><div>重量 (kg)</div><div>堆叠</div>
+                    <div>工件代号</div><div>长 (mm)</div><div>宽 (mm)</div><div>高 (mm)</div><div>重量 (kg)</div><div>堆叠</div>
                 `;
 
                 thSize.innerText = "核心尺寸 (mm)";
@@ -395,7 +395,7 @@
                     c.l = Math.round(c.l * 10);
                     c.w = Math.round(c.w * 10);
                     c.h = Math.round(c.h * 10);
-                    if (c.lp === undefined) c.lp = 50; // 默认 50mm 膨胀保护
+                    if (c.lp === undefined) c.lp = 50; 
                     if (c.wp === undefined) c.wp = 50;
                     if (c.hp === undefined) c.hp = 50;
                 });
@@ -441,23 +441,17 @@
             document.getElementById('exportBtn').style.display = 'none';
         }
 
-        // --- 初始化基础数据 ---
-        function init() {
-            lucide.createIcons();
-            switchMode('container');
-        }
-
-        // 加载经典的演示数据集
+        // --- 加载演示数据 ---
         function loadDemoData() {
             cargoList = [];
             if (currentMode === 'container') {
-                addCargoRow({ l: 150, w: 90, h: 110, qty: 8, weight: 120, stackable: true });
-                addCargoRow({ l: 80, w: 60, h: 60, qty: 15, weight: 45, stackable: true });
-                addCargoRow({ l: 210, w: 110, h: 130, qty: 4, weight: 350, stackable: false });
+                addCargoRow({ name: 'F1-1', l: 150, w: 90, h: 110, qty: 8, weight: 120, stackable: true });
+                addCargoRow({ name: 'F1-2', l: 80, w: 60, h: 60, qty: 15, weight: 45, stackable: true });
+                addCargoRow({ name: 'F2-1', l: 210, w: 110, h: 130, qty: 4, weight: 350, stackable: false });
             } else {
-                addCargoRow({ l: 500, w: 350, h: 300, qty: 3, weight: 180, stackable: true, lp: 60, wp: 60, hp: 40 });
-                addCargoRow({ l: 300, w: 250, h: 200, qty: 8, weight: 40, stackable: true, lp: 40, wp: 40, hp: 30 });
-                addCargoRow({ l: 800, w: 400, h: 500, qty: 1, weight: 650, stackable: false, lp: 100, wp: 100, hp: 80 });
+                addCargoRow({ name: 'F5-1', l: 500, w: 350, h: 300, qty: 3, weight: 180, stackable: true, lp: 60, wp: 60, hp: 40 });
+                addCargoRow({ name: 'F5-2', l: 300, w: 250, h: 200, qty: 8, weight: 40, stackable: true, lp: 40, wp: 40, hp: 30 });
+                addCargoRow({ name: 'F9-1', l: 800, w: 400, h: 500, qty: 1, weight: 650, stackable: false, lp: 100, wp: 100, hp: 80 });
             }
             renderCargoList();
         }
@@ -505,12 +499,13 @@
         function addCargoRow(data = null) {
             const id = Date.now() + Math.random();
             const color = `hsl(${Math.floor(Math.random() * 360)}, 75%, 60%)`;
+            const index = cargoList.length + 1;
             
             let defaultData;
             if (currentMode === 'container') {
-                defaultData = { l: 120, w: 80, h: 100, qty: 5, weight: 50, stackable: true };
+                defaultData = { name: 'F' + index, l: 120, w: 80, h: 100, qty: 5, weight: 50, stackable: true };
             } else {
-                defaultData = { l: 400, w: 300, h: 300, qty: 5, weight: 15, stackable: true, lp: 40, wp: 40, hp: 40 };
+                defaultData = { name: 'F' + index, l: 400, w: 300, h: 300, qty: 5, weight: 15, stackable: true, lp: 40, wp: 40, hp: 40 };
             }
 
             const cargo = { id, color, ...(data || defaultData) };
@@ -529,6 +524,7 @@
                             <button onclick="removeCargo(${c.id})" class="absolute -right-1 -top-1 bg-red-100 text-red-600 p-1.5 rounded-full opacity-0 group-hover:opacity-100 shadow-sm transition-all z-10"><i data-lucide="x" size="11"></i></button>
                             
                             <div class="cargo-grid-row-container mb-2">
+                                <div class="bg-slate-100 p-1 rounded border border-slate-200"><input type="text" value="${c.name || ''}" onchange="updateCargo(${c.id}, 'name', this.value)" class="input-compact font-bold text-slate-700" placeholder="代号"></div>
                                 <div class="bg-slate-50 p-1 rounded border border-slate-100"><input type="number" value="${c.l}" onchange="updateCargo(${c.id}, 'l', this.value)" class="input-compact" placeholder="长"></div>
                                 <div class="bg-slate-50 p-1 rounded border border-slate-100"><input type="number" value="${c.w}" onchange="updateCargo(${c.id}, 'w', this.value)" class="input-compact" placeholder="宽"></div>
                                 <div class="bg-slate-50 p-1 rounded border border-slate-100"><input type="number" value="${c.h}" onchange="updateCargo(${c.id}, 'h', this.value)" class="input-compact" placeholder="高"></div>
@@ -586,6 +582,7 @@
                             
                             <!-- 核心几何尺寸 -->
                             <div class="cargo-grid-row-box mb-2">
+                                <div class="bg-slate-100 p-1 rounded border border-slate-200"><input type="text" value="${c.name || ''}" onchange="updateCargo(${c.id}, 'name', this.value)" class="input-compact font-bold text-slate-700" placeholder="代号"></div>
                                 <div class="bg-slate-50 p-1 rounded border border-slate-100"><input type="number" value="${c.l}" onchange="updateCargo(${c.id}, 'l', this.value)" class="input-compact" placeholder="长L"></div>
                                 <div class="bg-slate-50 p-1 rounded border border-slate-100"><input type="number" value="${c.w}" onchange="updateCargo(${c.id}, 'w', this.value)" class="input-compact" placeholder="宽W"></div>
                                 <div class="bg-slate-50 p-1 rounded border border-slate-100"><input type="number" value="${c.h}" onchange="updateCargo(${c.id}, 'h', this.value)" class="input-compact" placeholder="高H"></div>
@@ -615,7 +612,7 @@
                 if (field === 'stackable') {
                     cargo[field] = val;
                 } else {
-                    cargo[field] = parseFloat(val) || 0;
+                    cargo[field] = val; // 对于名称直接保存字符串，其余通过parseFloat在解算时防呆过滤
                 }
             }
         }
@@ -633,24 +630,21 @@
         }
 
         function showPasteDemo() {
-            const msg = `💡 智装装箱 Pro 系统支持两种智能 Excel 复制粘贴模式：
+            const msg = `💡 智装装箱 Pro 具有极其强大的 Excel 自适应多列智能解析引擎：
 
-【格式 A（您的格式：合并尺寸列）】
-复制具有以下列的 Excel 区域：
-第一列：尺寸单元格 (如 1340×40×40 或 1340x40x40 或 1340*40*40)
-第二列：单件重量 (kg)
-第三列：打包数量
-第四列及以后：(可选) 堆叠、Lp、Wp、Hp
+【格式（支持带代号/名称的复杂格式）】
+您可以直接从 Excel 中复制整列，即便前面带有“代号/名称”，也无需手动删改：
+代号 (如 F9-1) | 尺寸 (如 1131×80×80 或 1131*80*80) | 重量 | 数量
 
-【格式 B（传统多列拆分格式）】
-第一列：长L | 第二列：宽W | 第三列：高H | 第四列：重量 | 第五列：数量 | 第六列：堆叠 (是/否)
+【传统五列式格式】
+长 | 宽 | 高 | 重量 | 数量
 
-多行可一次性直接批量导入！无需手动拆分。`;
+系统会自动定位尺寸列并提取其前后的代号、重量与数量。`;
             
             const notification = document.createElement('div');
             notification.className = "fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-5 rounded-2xl shadow-2xl z-[150] text-xs font-medium max-w-md border border-slate-800 animate-bounce";
             notification.innerHTML = `
-                <div class="flex items-center gap-2 mb-2 text-blue-400 font-bold"><i data-lucide="info" size="14"></i> 智能 Excel 复制导入指南:</div>
+                <div class="flex items-center gap-2 mb-2 text-blue-400 font-bold"><i data-lucide="info" size="14"></i> 自适应 Excel 粘贴指南:</div>
                 <div class="whitespace-pre-line text-slate-300 leading-relaxed">${msg}</div>
                 <button onclick="this.parentElement.remove()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-[10px] font-bold block w-full text-center">开始使用</button>
             `;
@@ -658,64 +652,93 @@
             lucide.createIcons();
         }
 
-        // --- 智能 Excel 粘贴解析器 ---
+        // --- 核心：多列自适应智能 Excel 剪贴板监听器 ---
         document.addEventListener('paste', (e) => {
             const text = e.clipboardData.getData('text');
             if (!text) return;
             const rows = text.split(/\r?\n/).filter(r => r.trim());
             const newItems = [];
+            
+            // 匹配 长×宽×高 / 长*宽*高 / 长x宽x高 等特征的正则表达式
+            const sizeRegex = /(\d+(?:\.\d+)?)\s*[xX*×]\s*(\d+(?:\.\d+)?)\s*[xX*×]\s*(\d+(?:\.\d+)?)/;
+
             rows.forEach(row => {
                 let cols = row.split('\t');
                 if (cols.length === 1) {
-                    cols = row.split(/,|，|\s+/).filter(x => x.trim());
+                    cols = row.split(/,|，/).filter(x => x.trim());
                 }
                 if (cols.length < 1) return;
 
                 let l = NaN, w = NaN, h = NaN, weight = NaN, qty = NaN, stackable = true;
+                let name = '';
                 let lp = currentMode === 'box' ? 40 : 0;
                 let wp = currentMode === 'box' ? 40 : 0;
                 let hp = currentMode === 'box' ? 40 : 0;
 
-                const dimMatch = cols[0].split(/[x×*]/i).map(x => parseFloat(x.trim()));
-
-                if (dimMatch.length >= 3 && !isNaN(dimMatch[0]) && !isNaN(dimMatch[1]) && !isNaN(dimMatch[2])) {
-                    l = dimMatch[0];
-                    w = dimMatch[1];
-                    h = dimMatch[2];
-
-                    if (cols[1] !== undefined) weight = parseFloat(cols[1]);
-                    if (cols[2] !== undefined) qty = parseInt(cols[2]);
-                    if (cols[3]) {
-                        const s = cols[3].trim().toLowerCase();
-                        stackable = !(s === 'false' || s === '否' || s === '0' || s === 'n');
+                // 1. 扫描寻找哪一列包含尺寸合并单元格
+                let sizeColIdx = -1;
+                let dimMatch = null;
+                for (let c = 0; c < cols.length; c++) {
+                    const match = cols[c].match(sizeRegex);
+                    if (match) {
+                        sizeColIdx = c;
+                        dimMatch = match;
+                        break;
                     }
-                    if (currentMode === 'box') {
-                        if (cols[4] !== undefined) lp = parseFloat(cols[4]);
-                        if (cols[5] !== undefined) wp = parseFloat(cols[5]);
-                        if (cols[6] !== undefined) hp = parseFloat(cols[6]);
+                }
+
+                if (sizeColIdx !== -1 && dimMatch) {
+                    // 找到尺寸列（如 1131×80×80），提取核心尺寸
+                    l = parseFloat(dimMatch[1]);
+                    w = parseFloat(dimMatch[2]);
+                    h = parseFloat(dimMatch[3]);
+
+                    // 如果尺寸列左边还有数据，说明包含“代号/名称” (如 F9-1)
+                    if (sizeColIdx > 0 && cols[sizeColIdx - 1]) {
+                        name = cols[sizeColIdx - 1].trim();
+                    }
+
+                    // 提取尺寸列右侧的“重量”和“数量”
+                    if (cols[sizeColIdx + 1] !== undefined) {
+                        weight = parseFloat(cols[sizeColIdx + 1]);
+                    }
+                    if (cols[sizeColIdx + 2] !== undefined) {
+                        qty = parseInt(cols[sizeColIdx + 2]);
+                    }
+                    if (cols[sizeColIdx + 3] !== undefined) {
+                        const s = cols[sizeColIdx + 3].trim().toLowerCase();
+                        stackable = !(s === 'false' || s === '否' || s === '0' || s === 'n');
                     }
                 } else {
-                    l = parseFloat(cols[0]);
-                    w = parseFloat(cols[1]);
-                    h = parseFloat(cols[2]);
-                    weight = parseFloat(cols[3]);
-                    qty = parseInt(cols[4]);
-                    
-                    if (cols[5]) {
-                        const s = cols[5].trim().toLowerCase();
-                        stackable = !(s === 'false' || s === '否' || s === '0' || s === 'n');
+                    // 没有找到含有分隔符的列，退回到传统的 5列拆分数字模式
+                    // 寻找前 3 个连续都是有效数字的列
+                    let startNumIdx = -1;
+                    for (let c = 0; c <= cols.length - 3; c++) {
+                        if (!isNaN(parseFloat(cols[c])) && !isNaN(parseFloat(cols[c+1])) && !isNaN(parseFloat(cols[c+2]))) {
+                            startNumIdx = c;
+                            break;
+                        }
                     }
-                    if (currentMode === 'box') {
-                        if (cols[6] !== undefined) lp = parseFloat(cols[6]);
-                        if (cols[7] !== undefined) wp = parseFloat(cols[7]);
-                        if (cols[8] !== undefined) hp = parseFloat(cols[8]);
+
+                    if (startNumIdx !== -1) {
+                        l = parseFloat(cols[startNumIdx]);
+                        w = parseFloat(cols[startNumIdx + 1]);
+                        h = parseFloat(cols[startNumIdx + 2]);
+
+                        if (cols[startNumIdx + 3] !== undefined) weight = parseFloat(cols[startNumIdx + 3]);
+                        if (cols[startNumIdx + 4] !== undefined) qty = parseInt(cols[startNumIdx + 4]);
+                        if (cols[startNumIdx + 5] !== undefined) {
+                            const s = cols[startNumIdx + 5].trim().toLowerCase();
+                            stackable = !(s === 'false' || s === '否' || s === '0' || s === 'n');
+                        }
                     }
                 }
 
                 if (!isNaN(l) && !isNaN(w) && !isNaN(h)) {
                     newItems.push({
+                        name: name || ('F' + (cargoList.length + newItems.length + 1)),
                         l, w, h,
-                        weight: isNaN(weight) ? 10 : weight,
+                        weight: isNaN(weight) ? 2 : weight,
                         qty: isNaN(qty) ? 1 : qty,
                         stackable,
                         lp, wp, hp
@@ -727,28 +750,28 @@
                 newItems.forEach(item => addCargoRow(item));
                 const prompt = document.createElement('div');
                 prompt.className = "fixed top-20 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-5 py-2.5 rounded-full shadow-lg z-[200] text-xs font-bold";
-                prompt.innerText = `成功识别并导入 ${newItems.length} 条 Excel 货物数据`;
+                prompt.innerText = `成功智能识别并导入 ${newItems.length} 条 Excel 货物数据`;
                 document.body.appendChild(prompt);
                 setTimeout(() => prompt.remove(), 2500);
             }
         });
 
         /**
-         * 相同规格工件智能预合并紧密叠堆函数 (Consolidate items with Group-Padding option)
+         * 相同规格工件智能预合并紧密叠堆函数
          */
         function consolidateItems(cargoList, isBoxMode, paddingScope, useGlobalPadding, globalLp, globalWp, globalHp, maxHeightLimit, wallThickness) {
             const flatItems = [];
             
             cargoList.forEach((c, cIdx) => {
-                const lp = useGlobalPadding ? globalLp : (c.lp || 0);
-                const wp = useGlobalPadding ? globalWp : (c.wp || 0);
-                const hp = useGlobalPadding ? globalHp : (c.hp || 0);
+                const lp = useGlobalPadding ? globalLp : (parseFloat(c.lp) || 0);
+                const wp = useGlobalPadding ? globalWp : (parseFloat(c.wp) || 0);
+                const hp = useGlobalPadding ? globalHp : (parseFloat(c.hp) || 0);
 
                 if (isBoxMode && paddingScope === 'class') {
                     // “每类” 紧密重叠打包模式：
-                    // 在有效高度限值内计算可以垂直叠放的最多件数 K
                     const usableH = maxHeightLimit - (wallThickness * 2);
-                    let k = Math.floor((usableH - hp) / c.h);
+                    const itemH = Math.max(1, c.h); // 防呆防零除
+                    let k = Math.floor((usableH - hp) / itemH);
                     if (k < 1) k = 1;
                     
                     let qtyRemaining = c.qty;
@@ -764,12 +787,10 @@
                             instanceIdx: blockIdx, // 叠放捆组编号
                             blockQty: currentBlockQty,
                             isBlock: true,
-                            // 实心合并工件的未膨胀几何尺寸
                             blockL: c.l,
                             blockW: c.w,
                             blockH: c.h * currentBlockQty,
                             weight: c.weight * currentBlockQty,
-                            // 整体包裹防护层后的实际求解包络尺寸 (L+Lp, W+Wp, H_stacked+Hp)
                             effL: c.l + lp,
                             effW: c.w + wp,
                             effH: (c.h * currentBlockQty) + hp,
@@ -804,11 +825,56 @@
             return flatItems;
         }
 
+        // --- 进阶极点计算与清理：EP Pruning 算法 ---
+        function pruneEpsList(eps, newEP, newRot, packed) {
+            // 生成新放入物体而衍生的3个极点
+            const newEps = [
+                { x: newEP.x + newRot.l, y: newEP.y, z: newEP.z },
+                { x: newEP.x, y: newEP.y + newRot.w, z: newEP.z },
+                { x: newEP.x, y: newEP.y, z: newEP.z + newRot.h }
+            ];
+
+            const combined = [...eps, ...newEps];
+            const pruned = [];
+            const seen = new Set();
+
+            for (const ep of combined) {
+                // 1. 物理坐标数值四舍五入防去重微量偏差
+                const key = `${Math.round(ep.x)},${Math.round(ep.y)},${Math.round(ep.z)}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+
+                // 2. 剪枝测试：若极点落入已装载货箱的核心区域，直接剪除，避免碰撞验证的大量无用功
+                let isCovered = false;
+                for (const p of packed) {
+                    if (ep.x >= p.x && ep.x < p.x + p.rotL &&
+                        ep.y >= p.y && ep.y < p.y + p.rotW &&
+                        ep.z >= p.z && ep.z < p.z + p.rotH) {
+                        isCovered = true;
+                        break;
+                    }
+                }
+                if (!isCovered) {
+                    pruned.push(ep);
+                }
+            }
+            return pruned;
+        }
+
         // --- 核心解算执行 ---
         function runOptimization() {
             if (!cargoList.length) return;
             document.getElementById('loading').classList.add('active');
             
+            // 安全性输入防呆过滤与清洗，预防 0 或负数造成无解死循环
+            cargoList.forEach(c => {
+                c.l = Math.max(1, parseFloat(c.l) || 100);
+                c.w = Math.max(1, parseFloat(c.w) || 100);
+                c.h = Math.max(1, parseFloat(c.h) || 100);
+                c.weight = Math.max(0.1, parseFloat(c.weight) || 5);
+                c.qty = Math.max(1, parseInt(c.qty) || 1);
+            });
+
             setTimeout(() => {
                 const isBoxMode = currentMode === 'box';
                 const wallThickness = isBoxMode ? parseInt(document.getElementById('wallThickness').value) : 0;
@@ -821,7 +887,7 @@
                 const globalHp = useGlobalPadding ? parseFloat(document.getElementById('globalHp').value) || 0 : 0;
                 const paddingScope = isBoxMode ? document.getElementById('paddingScope').value : 'each';
 
-                // 调用智能货物预处理合并函数
+                // 调用货物合并及防护层核算函数
                 const flatItems = consolidateItems(cargoList, isBoxMode, paddingScope, useGlobalPadding, globalLp, globalWp, globalHp, maxHeightLimit, wallThickness);
 
                 if (isBoxMode) {
@@ -855,7 +921,7 @@
         }
 
         /**
-         * 经典的多箱体分配装载 (Extreme Points)
+         * 容器装载核心算法 (带 EP 高承载剪枝版)
          */
         function solveStandardPacking(items, containers, useLashingGap, wallThickness = 0, allowOverHeight = false) {
             const GAP = useLashingGap ? 20 : 0; 
@@ -878,17 +944,14 @@
                     }
 
                     const packed = [];
-                    const eps = [{ x: 0, y: 0, z: 0 }];
+                    let eps = [{ x: 0, y: 0, z: 0 }];
                     let weight = 0;
                     let vol = 0;
                     const tempRemaining = [];
 
                     for (const item of remaining) {
-                        let bestEP = null;
-                        let bestRot = null;
-                        let minFit = Infinity;
+                        let bestEP = null, bestRot = null, minFit = Infinity;
 
-                        // 允许的三向标准翻转并匹配对应的核心尺寸与垫层。添加堆叠轴跟踪
                         const rots = [
                             { l: item.effL, w: item.effW, h: item.effH, coreL: item.blockL, coreW: item.blockW, coreH: item.blockH, padL: item.lp, padW: item.wp, padH: item.hp, stackAxis: 'z' },
                             { l: item.effW, w: item.effL, h: item.effH, coreL: item.blockW, coreW: item.blockL, coreH: item.blockH, padL: item.wp, padW: item.lp, padH: item.hp, stackAxis: 'z' },
@@ -940,9 +1003,8 @@
                             weight += item.weight;
                             vol += (item.l * item.w * item.h * (item.blockQty || 1)); 
                             
-                            eps.push({ x: bestEP.x + bestRot.l, y: bestEP.y, z: bestEP.z });
-                            eps.push({ x: bestEP.x, y: bestEP.y + bestRot.w, z: bestEP.z });
-                            eps.push({ x: bestEP.x, y: bestEP.y, z: bestEP.z + bestRot.h });
+                            // EP 剪枝降维，防止极点数组堆积造成浏览器死锁
+                            eps = pruneEpsList(eps, bestEP, bestRot, packed);
                         } else {
                             tempRemaining.push(item);
                         }
@@ -950,7 +1012,7 @@
 
                     if (vol > maxPackedVol) {
                         maxPackedVol = vol;
-                        bestSpec = spec;
+                        bestSpec = { ...spec, h: innerH + (wallThickness * 2) };
                         bestResult = {
                             packedItems: packed,
                             utilization: (vol / (innerL * innerW * innerH) * 100).toFixed(1),
@@ -972,33 +1034,28 @@
         }
 
         /**
-         * 逆向最小外包装设计算法（物理安全低重心排样强化版）
+         * 逆向最小外包装设计算法 (带 EP 深度剪枝版)
          */
         function solveInversePackingBox(items, wallThickness = 15) {
             const maxWidthLimit = parseFloat(document.getElementById('maxWidthLimit').value) || 2200;
             const maxHeightLimit = parseFloat(document.getElementById('maxHeightLimit').value) || 2200;
             const packingStrategy = document.getElementById('packingStrategy').value;
 
-            // 优先按照有效体积降序排序，保证体积大、底盘重的大件工件首先稳固坐底
             const sortedItems = [...items].sort((a, b) => (b.effL * b.effW * b.effH) - (a.effL * a.effW * a.effH));
             
             const packed = [];
-            const eps = [{ x: 0, y: 0, z: 0 }];
+            let eps = [{ x: 0, y: 0, z: 0 }];
             let currentWidth = 0;
             let currentLength = 0;
             let currentHeight = 0;
             let totalWeight = 0;
 
             for (const item of sortedItems) {
-                let bestEP = null;
-                let bestRot = null;
-                let minFitScore = Infinity;
+                let bestEP = null, bestRot = null, minFitScore = Infinity;
 
-                // 扣除壁板厚度得到可用的内部净空截面限值
                 const usableW = Math.max(maxWidthLimit - (wallThickness * 2), item.effL, item.effW, item.effH);
                 const usableH = Math.max(maxHeightLimit - (wallThickness * 2), item.effL, item.effW, item.effH);
 
-                // 允许工件自由三维旋转以寻求最优低重心/紧凑组合。加入堆叠方向检测
                 const rots = [
                     { l: item.effL, w: item.effW, h: item.effH, coreL: item.blockL, coreW: item.blockW, coreH: item.blockH, padL: item.lp, padW: item.wp, padH: item.hp, stackAxis: 'z' },
                     { l: item.effW, w: item.effL, h: item.effH, coreL: item.blockW, coreW: item.blockL, coreH: item.blockH, padL: item.wp, padW: item.lp, padH: item.hp, stackAxis: 'z' },
@@ -1008,9 +1065,7 @@
 
                 for (const ep of eps) {
                     for (const r of rots) {
-                        // 强制约束工件横向与高度不得越过可用限度
                         if (ep.y + r.w <= usableW && ep.z + r.h <= usableH) {
-                            // 碰撞阻碍测试
                             const collides = packed.some(p => 
                                 ep.x < p.x + p.rotL && ep.x + r.l > p.x &&
                                 ep.y < p.y + p.rotW && ep.y + r.w > p.y &&
@@ -1018,7 +1073,6 @@
                             );
 
                             if (!collides) {
-                                // 堆叠验证
                                 if (ep.z > 0 && !item.stackable) {
                                     continue;
                                 }
@@ -1068,9 +1122,8 @@
                     currentWidth = Math.max(currentWidth, bestEP.y + bestRot.w);
                     currentHeight = Math.max(currentHeight, bestEP.z + bestRot.h);
 
-                    eps.push({ x: bestEP.x + bestRot.l, y: bestEP.y, z: bestEP.z });
-                    eps.push({ x: bestEP.x, y: bestEP.y + bestRot.w, z: bestEP.z });
-                    eps.push({ x: bestEP.x, y: bestEP.y, z: bestEP.z + bestRot.h });
+                    // 清洗并剪除被遮盖极点，提升海量物品的循环计算效率
+                    eps = pruneEpsList(eps, bestEP, bestRot, packed);
                 }
             }
 
@@ -1103,6 +1156,8 @@
         }
 
         // --- 三维图形引擎 ---
+        let scene, camera, renderer, controls;
+        
         function updateScene() {
             const el = document.getElementById('renderTarget');
             const data = resultData.results[activeIdx];
@@ -1192,8 +1247,6 @@
                 const pH = item.padH || 0;
 
                 if (isBoxMode) {
-                    // 木箱打包模式：支持多工件紧密叠加整体包裹(每类模式)
-                    // A. 根据堆叠方向与叠放数量，计算每一个紧密堆放的子工件的核心坐标并渲染
                     let subItemsCoords = [];
                     if (item.isBlock && item.blockQty > 1) {
                         const qty = item.blockQty;
@@ -1217,7 +1270,7 @@
                                     cz: startY + pW / 2 + (i + 0.5) * wSub
                                 });
                             }
-                        } else { // 'x'
+                        } else { 
                             const lSub = item.coreL / qty;
                             for (let i = 0; i < qty; i++) {
                                 subItemsCoords.push({
@@ -1229,7 +1282,6 @@
                             }
                         }
                     } else {
-                        // 独立包装
                         subItemsCoords.push({
                             w: item.coreL - 2, h: item.coreH - 2, d: item.coreW - 2,
                             cx: startX + pL / 2 + item.coreL / 2,
@@ -1251,7 +1303,7 @@
                         scene.add(coreMesh);
                     });
 
-                    // B. 半透明整体缓冲垫套层 (在外侧整体包裹这组叠加物)
+                    // 绘制外侧整体半透明垫圈
                     const shellGeo = new THREE.BoxGeometry(item.rotL - 1, item.rotH - 1, item.rotW - 1);
                     const shellMat = new THREE.MeshPhongMaterial({
                         color: 0x38bdf8, 
@@ -1275,7 +1327,7 @@
                         scene.add(pulseEdge);
                     }
                 } else {
-                    // 传统集装箱模式
+                    // 集装箱模式
                     const geo = new THREE.BoxGeometry(item.rotL - 1, item.rotH - 1, item.rotW - 1);
                     const mat = new THREE.MeshPhongMaterial({
                         color: isHighlight ? 0xfacc15 : item.color,
@@ -1293,8 +1345,9 @@
                     }
                 }
 
-                // 标记牌
-                const labelText = item.isBlock && item.blockQty > 1 ? `${item.typeIdx}-[1-${item.blockQty}]` : `${item.typeIdx}-${item.instanceIdx}`;
+                // 优先显示工件真实代号/名称
+                const baseLabel = item.name ? item.name : (item.isBlock && item.blockQty > 1 ? `${item.typeIdx}-[1-${item.blockQty}]` : `${item.typeIdx}-${item.instanceIdx}`);
+                const labelText = item.isBlock && item.blockQty > 1 ? `${baseLabel} (重叠${item.blockQty}件)` : baseLabel;
                 const sprite = createTextSprite(labelText, isHighlight ? '#000000' : '#ffffff', isHighlight ? '#facc15' : 'rgba(15,23,42,0.8)');
                 sprite.position.set(startX + item.rotL / 2, startZ + item.rotH + (isBoxMode ? 35 : 15), startY + item.rotW / 2);
                 scene.add(sprite);
@@ -1626,23 +1679,23 @@
         function createTextSprite(text, color, bgColor) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            canvas.width = 160;
-            canvas.height = 80;
+            canvas.width = 180;
+            canvas.height = 90;
             
             ctx.fillStyle = bgColor;
             ctx.beginPath();
-            ctx.roundRect(5, 5, 150, 70, 10);
+            ctx.roundRect(5, 5, 170, 80, 10);
             ctx.fill();
             
-            ctx.font = 'bold 28px "Segoe UI", sans-serif';
+            ctx.font = 'bold 22px "Segoe UI", sans-serif';
             ctx.fillStyle = color;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(text, 80, 40);
+            ctx.fillText(text, 90, 45);
             
             const tex = new THREE.CanvasTexture(canvas);
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
-            sprite.scale.set(100, 50, 1);
+            sprite.scale.set(110, 55, 1);
             return sprite;
         }
 
@@ -1712,13 +1765,13 @@
                 const paddingStr = isBoxMode ? `Lp:${p.lp} Wp:${p.wp} Hp:${p.hp}` : '-';
                 const highlightClass = (activeStep != 0 && i == activeStep - 1) ? 'bg-amber-100 font-bold border-amber-300' : (activeStep != 0 && i >= activeStep ? 'opacity-20 grayscale' : 'hover:bg-slate-50');
 
-                // 显示捆组物件数量
-                const indexStr = p.isBlock && p.blockQty > 1 ? `${p.typeIdx}-[1-${p.blockQty}]` : `${p.typeIdx}-${p.instanceIdx}`;
+                // 优先显示用户设定的自定义工件代号（如 F9-1）
+                const displayIndex = p.name ? p.name : (p.isBlock && p.blockQty > 1 ? `${p.typeIdx}-[1-${p.blockQty}]` : `${p.typeIdx}-${p.instanceIdx}`);
                 const dimensionsStr = p.isBlock && p.blockQty > 1 ? `${p.l}x${p.w}x${p.h} (${p.blockQty}件叠装)` : `${p.l}x${p.w}x${p.h}`;
 
                 return `
                     <tr class="transition-all ${highlightClass}">
-                        <td class="px-8 py-3"><span class="px-3 py-1 rounded-lg font-black ${activeStep != 0 && i == activeStep - 1 ? 'bg-amber-400 text-black' : 'bg-blue-50 text-blue-700'}">${indexStr}</span></td>
+                        <td class="px-8 py-3"><span class="px-3 py-1 rounded-lg font-black ${activeStep != 0 && i == activeStep - 1 ? 'bg-amber-400 text-black' : 'bg-blue-50 text-blue-700'}">${displayIndex}</span></td>
                         <td class="px-8 py-3 font-semibold text-slate-700">${dimensionsStr} <span class="text-[9px] text-slate-400 font-mono">${unit}</span></td>
                         <td class="px-8 py-3 font-semibold text-sky-700 ${isBoxMode ? '' : 'hidden'}">${paddingStr}</td>
                         <td class="px-8 py-3 font-mono text-slate-400">(${p.x.toFixed(0)}, ${p.y.toFixed(0)}, ${p.z.toFixed(0)})</td>
@@ -1729,7 +1782,7 @@
             }).join('');
         }
 
-        // --- 导出具有高度起吊工艺指引的安全指导书 ---
+        // --- 一键导出吊装及装箱指导书 ---
         async function exportFullReport() {
             if (!resultData.results.length) return;
             document.getElementById('loading').classList.add('active');
@@ -1853,7 +1906,7 @@
                                 </div>
                                 
                                 <div class="stat-grid">
-                                    <div class="stat-card"><div class="stat-card-title">${isBoxMode ? '填充利用率' : '空间利用率'}</div><div class="stat-card-val">${br.util}%</div></div>
+                                    <div class="stat-card"><div class="stat-card-title">${isBoxMode ? '包装填充率' : '空间利用率'}</div><div class="stat-card-val">${br.util}%</div></div>
                                     <div class="stat-card"><div class="stat-card-title">实装载总重</div><div class="stat-card-val" style="color: #0f172a">${br.weight} kg</div></div>
                                     <div class="stat-card"><div class="stat-card-title">实装载件数</div><div class="stat-card-val" style="color: #10b981">${br.steps.length} 组/件</div></div>
                                 </div>
@@ -1880,7 +1933,7 @@
 
                                 <h3 style="border-left: 5px solid #2563eb; padding-left: 15px; margin-bottom:30px;">顺序装配与保护作业指南</h3>
                                 ${br.steps.map((s, sIdx) => {
-                                    const itemIdxStr = s.isBlock && s.blockQty > 1 ? `${s.typeIdx}-[1-${s.blockQty}] (${s.blockQty}件重叠)` : `${s.typeIdx}-${s.instanceIdx}`;
+                                    const itemIdxStr = s.name ? `${s.name} (第${s.instanceIdx}件)` : `${s.typeIdx}-${s.instanceIdx}`;
                                     return `
                                         <div class="step-row">
                                             <div class="step-info">
