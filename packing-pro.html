@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智装装箱 Pro v9.1 - 工业级安全重心监控与智能双模装车系统</title>
+    <title>智装装箱 Pro v9.4 - 工业级安全重心监控与智能双模装车系统</title>
     <!-- 引入外部库 CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -36,7 +36,7 @@
             <div class="p-2 bg-blue-600 rounded-lg text-white"><i data-lucide="package-open"></i></div>
             <div>
                 <h1 class="text-lg font-bold tracking-tight text-slate-800 flex items-center gap-1.5">
-                    智装装箱 Pro <span class="text-blue-600 font-black">v9.1</span>
+                    智装装箱 Pro <span class="text-blue-600 font-black">v9.4</span>
                 </h1>
                 <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">智能双模物理重心与自适应Excel表格解析工具</p>
             </div>
@@ -104,7 +104,7 @@
                         </div>
                     </div>
 
-                    <!-- 统一的全局膨胀保护尺寸设置区 -->
+                    <!-- 统一的全局防护层设置区 -->
                     <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm space-y-3">
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
@@ -116,7 +116,7 @@
                             </label>
                         </div>
 
-                        <!-- 全局垫层 Lp, Wp, Hp 设定 -->
+                        <!-- 全局垫层 Lp, Wp, Hp -->
                         <div id="globalPaddingInputs" class="grid grid-cols-3 gap-2 opacity-50 pointer-events-none transition-all duration-200">
                             <div class="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-200">
                                 <span class="text-[9px] font-bold text-slate-400">Lp:</span>
@@ -132,7 +132,7 @@
                             </div>
                         </div>
 
-                        <!-- 膨胀策略范围选项 -->
+                        <!-- 膨胀应用模式 -->
                         <div>
                             <label class="block text-[9px] font-black text-slate-400 uppercase mb-1 flex items-center gap-0.5">
                                 防护计算应用模式
@@ -145,7 +145,7 @@
                         </div>
                     </div>
 
-                    <!-- 运输底面、高度及堆叠策略控制 -->
+                    <!-- 运输限界与策略控制 -->
                     <div id="boxLimitsContainer" class="space-y-3 bg-blue-50/40 p-3 rounded-xl border border-blue-100">
                         <div class="grid grid-cols-2 gap-2">
                             <div>
@@ -160,7 +160,7 @@
                         <div>
                             <label class="block text-[9px] font-black text-blue-600 uppercase mb-1 flex items-center gap-0.5">堆叠排布策略</label>
                             <select id="packingStrategy" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
-                                <option value="lowGravity" selected>🥇 安全低重心 (优先铺满地面，层层堆叠)</option>
+                                <option value="lowGravity" selected>🥈 智能安全低重心 (优先铺满2.2m底面，再向上堆叠)</option>
                                 <option value="compactXZ">🥇 截面最紧凑 (优先宽高填充，控制长度)</option>
                             </select>
                         </div>
@@ -178,7 +178,7 @@
                     <span class="text-[9px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded cursor-pointer animate-pulse" onclick="showPasteDemo()">Ctrl+V 智能粘贴</span>
                 </div>
                 
-                <!-- 表头：根据模式动态提示 -->
+                <!-- 表头 -->
                 <div id="cargoTableHeader" class="px-4 py-2 bg-slate-100 border-b border-slate-200 cargo-grid-row-container text-[9px] font-black text-slate-500 uppercase text-center">
                     <div>工件代号</div><div>长</div><div>宽</div><div>高</div><div>重量(kg)</div><div>堆叠</div>
                 </div>
@@ -209,7 +209,7 @@
                 <h2 class="text-2xl font-black text-slate-800 mb-4">智能解析与起吊重心系统已就绪</h2>
                 <p class="text-slate-400 max-w-sm text-sm font-medium leading-relaxed">
                     系统支持货物三维重心自动解算，并针对工业包装设计了安全低重心排样算法。支持一键直接从 Excel 导入各种复杂规格。<br>
-                    <span class="text-[10px] uppercase font-bold text-blue-500 mt-3 bg-blue-50 px-3 py-1.5 rounded-full inline-block">v9.1 智能合并尺寸自适应解析内核</span>
+                    <span class="text-[10px] uppercase font-bold text-blue-500 mt-3 bg-blue-50 px-3 py-1.5 rounded-full inline-block">v9.4 6自由度自适应贴地排布内核</span>
                 </p>
                 <button onclick="loadDemoData()" class="mt-4 text-xs font-bold text-blue-600 hover:underline">加载演示数据一试</button>
             </div>
@@ -292,7 +292,7 @@
     <!-- 遮罩层 -->
     <div id="loading" class="loading-overlay fixed inset-0 z-[100] flex-col items-center justify-center text-white">
         <div class="animate-spin rounded-full h-12 w-12 border-4 border-white/20 border-t-white mb-4"></div>
-        <p id="loadingText" class="text-sm font-black tracking-widest uppercase">正在执行智能配重分配、起吊力矩计算和三维渲染...</p>
+        <p id="loadingText" class="text-sm font-black tracking-widest uppercase">正在执行智能配重分配、起吊力迹计算和三维渲染...</p>
     </div>
 
     <script>
@@ -555,7 +555,7 @@
                     } else {
                         paddingHtml = `
                             <div class="bg-blue-50/50 rounded-lg p-2 mb-2 flex flex-col gap-1.5 border border-blue-100/40">
-                                <span class="text-[8px] font-bold text-blue-500 uppercase tracking-widest flex items-center gap-1">
+                                <span class="text-[8px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
                                     <i data-lucide="shield-alert" size="10"></i> 独立防护/缓冲层尺寸 (Lp, Wp, Hp)
                                 </span>
                                 <div class="grid grid-cols-3 gap-2">
@@ -612,7 +612,7 @@
                 if (field === 'stackable') {
                     cargo[field] = val;
                 } else {
-                    cargo[field] = val; // 对于名称直接保存字符串，其余通过parseFloat在解算时防呆过滤
+                    cargo[field] = val; 
                 }
             }
         }
@@ -622,6 +622,7 @@
             renderCargoList();
         }
 
+        // --- 清空数据 ---
         function clearAllData() {
             cargoList = [];
             resultData = { results: [], unpacked: [] };
@@ -652,14 +653,14 @@
             lucide.createIcons();
         }
 
-        // --- 核心：多列自适应智能 Excel 剪贴板监听器 ---
+        // --- 智能 Excel 剪贴板监听器 ---
         document.addEventListener('paste', (e) => {
             const text = e.clipboardData.getData('text');
             if (!text) return;
             const rows = text.split(/\r?\n/).filter(r => r.trim());
             const newItems = [];
             
-            // 匹配 长×宽×高 / 长*宽*高 / 长x宽x高 等特征的正则表达式
+            // 匹配 长×宽×高 的正则
             const sizeRegex = /(\d+(?:\.\d+)?)\s*[xX*×]\s*(\d+(?:\.\d+)?)\s*[xX*×]\s*(\d+(?:\.\d+)?)/;
 
             rows.forEach(row => {
@@ -675,7 +676,6 @@
                 let wp = currentMode === 'box' ? 40 : 0;
                 let hp = currentMode === 'box' ? 40 : 0;
 
-                // 1. 扫描寻找哪一列包含尺寸合并单元格
                 let sizeColIdx = -1;
                 let dimMatch = null;
                 for (let c = 0; c < cols.length; c++) {
@@ -688,17 +688,14 @@
                 }
 
                 if (sizeColIdx !== -1 && dimMatch) {
-                    // 找到尺寸列（如 1131×80×80），提取核心尺寸
                     l = parseFloat(dimMatch[1]);
                     w = parseFloat(dimMatch[2]);
                     h = parseFloat(dimMatch[3]);
 
-                    // 如果尺寸列左边还有数据，说明包含“代号/名称” (如 F9-1)
                     if (sizeColIdx > 0 && cols[sizeColIdx - 1]) {
                         name = cols[sizeColIdx - 1].trim();
                     }
 
-                    // 提取尺寸列右侧的“重量”和“数量”
                     if (cols[sizeColIdx + 1] !== undefined) {
                         weight = parseFloat(cols[sizeColIdx + 1]);
                     }
@@ -710,8 +707,6 @@
                         stackable = !(s === 'false' || s === '否' || s === '0' || s === 'n');
                     }
                 } else {
-                    // 没有找到含有分隔符的列，退回到传统的 5列拆分数字模式
-                    // 寻找前 3 个连续都是有效数字的列
                     let startNumIdx = -1;
                     for (let c = 0; c <= cols.length - 3; c++) {
                         if (!isNaN(parseFloat(cols[c])) && !isNaN(parseFloat(cols[c+1])) && !isNaN(parseFloat(cols[c+2]))) {
@@ -770,7 +765,7 @@
                 if (isBoxMode && paddingScope === 'class') {
                     // “每类” 紧密重叠打包模式：
                     const usableH = maxHeightLimit - (wallThickness * 2);
-                    const itemH = Math.max(1, c.h); // 防呆防零除
+                    const itemH = Math.max(1, c.h); 
                     let k = Math.floor((usableH - hp) / itemH);
                     if (k < 1) k = 1;
                     
@@ -784,7 +779,7 @@
                         flatItems.push({
                             ...c,
                             typeIdx: cIdx + 1,
-                            instanceIdx: blockIdx, // 叠放捆组编号
+                            instanceIdx: blockIdx, 
                             blockQty: currentBlockQty,
                             isBlock: true,
                             blockL: c.l,
@@ -825,9 +820,11 @@
             return flatItems;
         }
 
-        // --- 进阶极点计算与清理：EP Pruning 算法 ---
+        // --- 三维及吊装点、重心算法全局变量 ---
+        let scene, camera, renderer, controls;
+
+        // --- 极点计算与清理：EP Pruning 算法 ---
         function pruneEpsList(eps, newEP, newRot, packed) {
-            // 生成新放入物体而衍生的3个极点
             const newEps = [
                 { x: newEP.x + newRot.l, y: newEP.y, z: newEP.z },
                 { x: newEP.x, y: newEP.y + newRot.w, z: newEP.z },
@@ -839,12 +836,10 @@
             const seen = new Set();
 
             for (const ep of combined) {
-                // 1. 物理坐标数值四舍五入防去重微量偏差
                 const key = `${Math.round(ep.x)},${Math.round(ep.y)},${Math.round(ep.z)}`;
                 if (seen.has(key)) continue;
                 seen.add(key);
 
-                // 2. 剪枝测试：若极点落入已装载货箱的核心区域，直接剪除，避免碰撞验证的大量无用功
                 let isCovered = false;
                 for (const p of packed) {
                     if (ep.x >= p.x && ep.x < p.x + p.rotL &&
@@ -866,7 +861,6 @@
             if (!cargoList.length) return;
             document.getElementById('loading').classList.add('active');
             
-            // 安全性输入防呆过滤与清洗，预防 0 或负数造成无解死循环
             cargoList.forEach(c => {
                 c.l = Math.max(1, parseFloat(c.l) || 100);
                 c.w = Math.max(1, parseFloat(c.w) || 100);
@@ -887,7 +881,6 @@
                 const globalHp = useGlobalPadding ? parseFloat(document.getElementById('globalHp').value) || 0 : 0;
                 const paddingScope = isBoxMode ? document.getElementById('paddingScope').value : 'each';
 
-                // 调用货物合并及防护层核算函数
                 const flatItems = consolidateItems(cargoList, isBoxMode, paddingScope, useGlobalPadding, globalLp, globalWp, globalHp, maxHeightLimit, wallThickness);
 
                 if (isBoxMode) {
@@ -921,7 +914,7 @@
         }
 
         /**
-         * 容器装载核心算法 (带 EP 高承载剪枝版)
+         * 容器装载核心算法 (带 EP 剪枝与 6-DOF 重心姿态优化)
          */
         function solveStandardPacking(items, containers, useLashingGap, wallThickness = 0, allowOverHeight = false) {
             const GAP = useLashingGap ? 20 : 0; 
@@ -950,21 +943,30 @@
                     const tempRemaining = [];
 
                     for (const item of remaining) {
-                        let bestEP = null, bestRot = null, minFit = Infinity, bestRotH = Infinity;
+                        let bestEP = null, bestRot = null, minFit = Infinity;
 
                         const rots = [
                             { l: item.effL, w: item.effW, h: item.effH, coreL: item.blockL, coreW: item.blockW, coreH: item.blockH, padL: item.lp, padW: item.wp, padH: item.hp, stackAxis: 'z' },
                             { l: item.effW, w: item.effL, h: item.effH, coreL: item.blockW, coreW: item.blockL, coreH: item.blockH, padL: item.wp, padW: item.lp, padH: item.hp, stackAxis: 'z' },
-                            { l: item.effL, w: item.effH, h: item.effW, coreL: item.blockL, coreW: item.blockH, coreH: item.blockW, padL: item.lp, padW: item.hp, padH: item.wp, stackAxis: 'y' },
+                            { l: item.effL, w: item.effH, h: item.effW, coreL: item.blockL, coreW: item.blockH, coreH: item.blockW, padL: item.lp, padW: item.wp, padH: item.hp, stackAxis: 'y' },
                             { l: item.effH, w: item.effL, h: item.effW, coreL: item.blockH, coreW: item.blockL, coreH: item.blockW, padL: item.hp, padW: item.lp, padH: item.wp, stackAxis: 'y' },
-                            { l: item.effH, w: item.effW, h: item.effL, coreL: item.blockH, coreW: item.blockW, coreH: item.blockL, padL: item.hp, padW: item.wp, padH: item.lp, stackAxis: 'x' },
-                            { l: item.effW, w: item.effH, h: item.effL, coreL: item.blockW, coreW: item.blockH, coreH: item.blockL, padL: item.wp, padW: item.hp, padH: item.lp, stackAxis: 'x' }
+                            { l: item.effW, w: item.effH, h: item.effL, coreL: item.blockW, coreW: item.blockH, coreH: item.blockL, padL: item.wp, padW: item.hp, padH: item.lp, stackAxis: 'x' },
+                            { l: item.effH, w: item.effW, h: item.effL, coreL: item.blockH, coreW: item.blockW, coreH: item.blockL, padL: item.hp, padW: item.wp, padH: item.lp, stackAxis: 'x' }
                         ];
+
+                        rots.sort((a, b) => {
+                            const areaA = a.l * a.w;
+                            const areaB = b.l * b.w;
+                            if (Math.abs(areaB - areaA) > 1e-3) {
+                                return areaB - areaA; 
+                            }
+                            return a.h - b.h; 
+                        });
 
                         for (const ep of eps) {
                             for (const r of rots) {
                                 if (ep.x + r.l <= innerL && ep.y + r.w <= innerW && ep.z + r.h <= innerH) {
-                                    const collides = packed.some(p =>
+                                    const collides = packed.some(p => 
                                         ep.x < p.x + p.rotL && ep.x + r.l > p.x &&
                                         ep.y < p.y + p.rotW && ep.y + r.w > p.y &&
                                         ep.z < p.z + p.rotH && ep.z + r.h > p.z
@@ -973,11 +975,15 @@
                                         if (ep.z > 0 && !item.stackable) {
                                             continue;
                                         }
-                                        const score = ep.z * 1000000 + ep.x * 1000 + ep.y;
-                                        // 同位置时优先选最小高度（最大面贴地/堆叠面）
-                                        if (score < minFit || (score === minFit && r.h < bestRotH)) {
+
+                                        let stabilityPenalty = 0;
+                                        if (r.h > r.l || r.h > r.w) {
+                                            stabilityPenalty = (r.h / Math.min(r.l, r.w)) * 50000000;
+                                        }
+
+                                        const score = ep.z * 1000000 + ep.x * 1000 + ep.y + stabilityPenalty;
+                                        if (score < minFit) {
                                             minFit = score;
-                                            bestRotH = r.h;
                                             bestEP = ep;
                                             bestRot = r;
                                         }
@@ -1007,7 +1013,6 @@
                             weight += item.weight;
                             vol += (item.l * item.w * item.h * (item.blockQty || 1)); 
                             
-                            // EP 剪枝降维，防止极点数组堆积造成浏览器死锁
                             eps = pruneEpsList(eps, bestEP, bestRot, packed);
                         } else {
                             tempRemaining.push(item);
@@ -1038,14 +1043,22 @@
         }
 
         /**
-         * 逆向最小外包装设计算法 (带 EP 深度剪枝版)
+         * 逆向最小外包装设计算法 (带 6-DOF 重心姿态约束、投影底面积优先、底面舒适限界平衡机制)
          */
         function solveInversePackingBox(items, wallThickness = 15) {
             const maxWidthLimit = parseFloat(document.getElementById('maxWidthLimit').value) || 2200;
             const maxHeightLimit = parseFloat(document.getElementById('maxHeightLimit').value) || 2200;
             const packingStrategy = document.getElementById('packingStrategy').value;
 
-            const sortedItems = [...items].sort((a, b) => (b.effL * b.effW * b.effH) - (a.effL * a.effW * a.effH));
+            // 智能优化排序：优先将投影面积大（最宽平）、底盘稳的货物排在最前面，作为首先铺底的基准件
+            const sortedItems = [...items].sort((a, b) => {
+                const areaA = a.effL * a.effW;
+                const areaB = b.effL * b.effW;
+                if (Math.abs(areaB - areaA) > 1) {
+                    return areaB - areaA; 
+                }
+                return (b.effL * b.effW * b.effH) - (a.effL * a.effW * a.effH); 
+            });
             
             const packed = [];
             let eps = [{ x: 0, y: 0, z: 0 }];
@@ -1054,8 +1067,13 @@
             let currentHeight = 0;
             let totalWeight = 0;
 
+            // 动态计算工件最大的单体物理长度，作为防死锁底限舒适区
+            const maxSingleItemL = items.reduce((max, it) => Math.max(max, it.effL), 0);
+            const comfortL = Math.max(maxWidthLimit, maxSingleItemL);
+            const comfortW = maxWidthLimit;
+
             for (const item of sortedItems) {
-                let bestEP = null, bestRot = null, minFitScore = Infinity, bestRotH = Infinity;
+                let bestEP = null, bestRot = null, minFitScore = Infinity;
 
                 const usableW = Math.max(maxWidthLimit - (wallThickness * 2), item.effL, item.effW, item.effH);
                 const usableH = Math.max(maxHeightLimit - (wallThickness * 2), item.effL, item.effW, item.effH);
@@ -1063,16 +1081,25 @@
                 const rots = [
                     { l: item.effL, w: item.effW, h: item.effH, coreL: item.blockL, coreW: item.blockW, coreH: item.blockH, padL: item.lp, padW: item.wp, padH: item.hp, stackAxis: 'z' },
                     { l: item.effW, w: item.effL, h: item.effH, coreL: item.blockW, coreW: item.blockL, coreH: item.blockH, padL: item.wp, padW: item.lp, padH: item.hp, stackAxis: 'z' },
-                    { l: item.effL, w: item.effH, h: item.effW, coreL: item.blockL, coreW: item.blockH, coreH: item.blockW, padL: item.lp, padW: item.hp, padH: item.wp, stackAxis: 'y' },
+                    { l: item.effL, w: item.effH, h: item.effW, coreL: item.blockL, coreW: item.blockH, coreH: item.blockW, padL: item.lp, padW: item.wp, padH: item.hp, stackAxis: 'y' },
                     { l: item.effH, w: item.effL, h: item.effW, coreL: item.blockH, coreW: item.blockL, coreH: item.blockW, padL: item.hp, padW: item.lp, padH: item.wp, stackAxis: 'y' },
-                    { l: item.effH, w: item.effW, h: item.effL, coreL: item.blockH, coreW: item.blockW, coreH: item.blockL, padL: item.hp, padW: item.wp, padH: item.lp, stackAxis: 'x' },
-                    { l: item.effW, w: item.effH, h: item.effL, coreL: item.blockW, coreW: item.blockH, coreH: item.blockL, padL: item.wp, padW: item.hp, padH: item.lp, stackAxis: 'x' }
+                    { l: item.effW, w: item.effH, h: item.effL, coreL: item.blockW, coreW: item.blockH, coreH: item.blockL, padL: item.wp, padW: item.hp, padH: item.lp, stackAxis: 'x' },
+                    { l: item.effH, w: item.effW, h: item.effL, coreL: item.blockH, coreW: item.blockW, coreH: item.blockL, padL: item.hp, padW: item.wp, padH: item.lp, stackAxis: 'x' }
                 ];
+
+                rots.sort((a, b) => {
+                    const areaA = a.l * a.w;
+                    const areaB = b.l * b.w;
+                    if (Math.abs(areaB - areaA) > 1e-3) {
+                        return areaB - areaA; 
+                    }
+                    return a.h - b.h; 
+                });
 
                 for (const ep of eps) {
                     for (const r of rots) {
                         if (ep.y + r.w <= usableW && ep.z + r.h <= usableH) {
-                            const collides = packed.some(p =>
+                            const collides = packed.some(p => 
                                 ep.x < p.x + p.rotL && ep.x + r.l > p.x &&
                                 ep.y < p.y + p.rotW && ep.y + r.w > p.y &&
                                 ep.z < p.z + p.rotH && ep.z + r.h > p.z
@@ -1083,21 +1110,32 @@
                                     continue;
                                 }
 
+                                let stabilityPenalty = 0;
+                                if (r.h > r.l || r.h > r.w) {
+                                    stabilityPenalty = (r.h / Math.min(r.l, r.w)) * 50000000;
+                                }
+
                                 let score = 0;
                                 const tempL = Math.max(currentLength, ep.x + r.l);
                                 const tempW = Math.max(currentWidth, ep.y + r.w);
                                 const tempH = Math.max(currentHeight, ep.z + r.h);
 
                                 if (packingStrategy === 'lowGravity') {
-                                    score = ep.z * 10000000 + tempL * 10000 + tempW * 100;
+                                    // 智能底面舒适限界平衡：超出舒适底面（如 2.2x2.2m）时，强烈惩罚长度或宽度扩张，转而强制在 3D 空间上向下（平躺）堆叠
+                                    let comfortPenalty = 0;
+                                    if (tempL > comfortL) {
+                                        comfortPenalty += (tempL - comfortL) * 200000; 
+                                    }
+                                    if (tempW > comfortW) {
+                                        comfortPenalty += (tempW - comfortW) * 200000;
+                                    }
+                                    score = ep.z * 1000 + tempL * 10 + tempW * 1 + comfortPenalty + stabilityPenalty;
                                 } else {
-                                    score = ep.x * 10000000 + ep.z * 1000 + ep.y;
+                                    score = ep.x * 10000000 + ep.z * 1000 + ep.y + stabilityPenalty;
                                 }
-
-                                // 同位置时优先选最小高度（最大面贴地/堆叠面）
-                                if (score < minFitScore || (score === minFitScore && r.h < bestRotH)) {
+                                
+                                if (score < minFitScore) {
                                     minFitScore = score;
-                                    bestRotH = r.h;
                                     bestEP = ep;
                                     bestRot = r;
                                 }
@@ -1130,7 +1168,6 @@
                     currentWidth = Math.max(currentWidth, bestEP.y + bestRot.w);
                     currentHeight = Math.max(currentHeight, bestEP.z + bestRot.h);
 
-                    // 清洗并剪除被遮盖极点，提升海量物品的循环计算效率
                     eps = pruneEpsList(eps, bestEP, bestRot, packed);
                 }
             }
@@ -1164,8 +1201,6 @@
         }
 
         // --- 三维图形引擎 ---
-        let scene, camera, renderer, controls;
-        
         function updateScene() {
             const el = document.getElementById('renderTarget');
             const data = resultData.results[activeIdx];
@@ -1272,7 +1307,7 @@
                             const wSub = item.coreW / qty;
                             for (let i = 0; i < qty; i++) {
                                 subItemsCoords.push({
-                                    w: item.coreL - 2, h: item.coreH - 2, d: wSub - 2,
+                                    w: item.coreL - 2, h: hSub - 2, d: wSub - 2,
                                     cx: startX + pL / 2 + item.coreL / 2,
                                     cy: startZ + pH / 2 + item.coreH / 2,
                                     cz: startY + pW / 2 + (i + 0.5) * wSub
@@ -1298,7 +1333,6 @@
                         });
                     }
 
-                    // 绘制实心货物几何核心
                     subItemsCoords.forEach(sub => {
                         const coreGeo = new THREE.BoxGeometry(sub.w, sub.h, sub.d);
                         const coreMat = new THREE.MeshPhongMaterial({
@@ -1311,7 +1345,6 @@
                         scene.add(coreMesh);
                     });
 
-                    // 绘制外侧整体半透明垫圈
                     const shellGeo = new THREE.BoxGeometry(item.rotL - 1, item.rotH - 1, item.rotW - 1);
                     const shellMat = new THREE.MeshPhongMaterial({
                         color: 0x38bdf8, 
@@ -1335,7 +1368,6 @@
                         scene.add(pulseEdge);
                     }
                 } else {
-                    // 集装箱模式
                     const geo = new THREE.BoxGeometry(item.rotL - 1, item.rotH - 1, item.rotW - 1);
                     const mat = new THREE.MeshPhongMaterial({
                         color: isHighlight ? 0xfacc15 : item.color,
@@ -1353,7 +1385,6 @@
                     }
                 }
 
-                // 优先显示工件真实代号/名称
                 const baseLabel = item.name ? item.name : (item.isBlock && item.blockQty > 1 ? `${item.typeIdx}-[1-${item.blockQty}]` : `${item.typeIdx}-${item.instanceIdx}`);
                 const labelText = item.isBlock && item.blockQty > 1 ? `${baseLabel} (重叠${item.blockQty}件)` : baseLabel;
                 const sprite = createTextSprite(labelText, isHighlight ? '#000000' : '#ffffff', isHighlight ? '#facc15' : 'rgba(15,23,42,0.8)');
@@ -1659,7 +1690,7 @@
             safetyPanel.innerHTML = `
                 <div class="flex flex-col gap-2">
                     <div class="flex items-center justify-between">
-                        <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                        <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest text-slate-500 flex items-center gap-1">
                             <i data-lucide="shield-alert" size="12"></i> 物理重量重心与搬运安全
                         </h4>
                         <span class="text-[9px] px-1.5 py-0.5 rounded font-black bg-slate-900 text-white font-mono">DYNAMICS</span>
@@ -1773,7 +1804,6 @@
                 const paddingStr = isBoxMode ? `Lp:${p.lp} Wp:${p.wp} Hp:${p.hp}` : '-';
                 const highlightClass = (activeStep != 0 && i == activeStep - 1) ? 'bg-amber-100 font-bold border-amber-300' : (activeStep != 0 && i >= activeStep ? 'opacity-20 grayscale' : 'hover:bg-slate-50');
 
-                // 优先显示用户设定的自定义工件代号（如 F9-1）
                 const displayIndex = p.name ? p.name : (p.isBlock && p.blockQty > 1 ? `${p.typeIdx}-[1-${p.blockQty}]` : `${p.typeIdx}-${p.instanceIdx}`);
                 const dimensionsStr = p.isBlock && p.blockQty > 1 ? `${p.l}x${p.w}x${p.h} (${p.blockQty}件叠装)` : `${p.l}x${p.w}x${p.h}`;
 
@@ -1970,6 +2000,12 @@
             a.download = `Packing_Security_Report_${currentMode}.html`;
             a.click();
             URL.revokeObjectURL(url);
+        }
+
+        // --- 初始化基础数据 ---
+        function init() {
+            lucide.createIcons();
+            switchMode('container');
         }
 
         // --- 启动引导 ---
