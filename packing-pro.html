@@ -950,19 +950,21 @@
                     const tempRemaining = [];
 
                     for (const item of remaining) {
-                        let bestEP = null, bestRot = null, minFit = Infinity;
+                        let bestEP = null, bestRot = null, minFit = Infinity, bestRotH = Infinity;
 
                         const rots = [
                             { l: item.effL, w: item.effW, h: item.effH, coreL: item.blockL, coreW: item.blockW, coreH: item.blockH, padL: item.lp, padW: item.wp, padH: item.hp, stackAxis: 'z' },
                             { l: item.effW, w: item.effL, h: item.effH, coreL: item.blockW, coreW: item.blockL, coreH: item.blockH, padL: item.wp, padW: item.lp, padH: item.hp, stackAxis: 'z' },
                             { l: item.effL, w: item.effH, h: item.effW, coreL: item.blockL, coreW: item.blockH, coreH: item.blockW, padL: item.lp, padW: item.hp, padH: item.wp, stackAxis: 'y' },
-                            { l: item.effH, w: item.effW, h: item.effL, coreL: item.blockH, coreW: item.blockW, coreH: item.blockL, padL: item.hp, padW: item.wp, padH: item.lp, stackAxis: 'x' }
+                            { l: item.effH, w: item.effL, h: item.effW, coreL: item.blockH, coreW: item.blockL, coreH: item.blockW, padL: item.hp, padW: item.lp, padH: item.wp, stackAxis: 'y' },
+                            { l: item.effH, w: item.effW, h: item.effL, coreL: item.blockH, coreW: item.blockW, coreH: item.blockL, padL: item.hp, padW: item.wp, padH: item.lp, stackAxis: 'x' },
+                            { l: item.effW, w: item.effH, h: item.effL, coreL: item.blockW, coreW: item.blockH, coreH: item.blockL, padL: item.wp, padW: item.hp, padH: item.lp, stackAxis: 'x' }
                         ];
 
                         for (const ep of eps) {
                             for (const r of rots) {
                                 if (ep.x + r.l <= innerL && ep.y + r.w <= innerW && ep.z + r.h <= innerH) {
-                                    const collides = packed.some(p => 
+                                    const collides = packed.some(p =>
                                         ep.x < p.x + p.rotL && ep.x + r.l > p.x &&
                                         ep.y < p.y + p.rotW && ep.y + r.w > p.y &&
                                         ep.z < p.z + p.rotH && ep.z + r.h > p.z
@@ -972,8 +974,10 @@
                                             continue;
                                         }
                                         const score = ep.z * 1000000 + ep.x * 1000 + ep.y;
-                                        if (score < minFit) {
+                                        // 同位置时优先选最小高度（最大面贴地/堆叠面）
+                                        if (score < minFit || (score === minFit && r.h < bestRotH)) {
                                             minFit = score;
+                                            bestRotH = r.h;
                                             bestEP = ep;
                                             bestRot = r;
                                         }
@@ -1051,7 +1055,7 @@
             let totalWeight = 0;
 
             for (const item of sortedItems) {
-                let bestEP = null, bestRot = null, minFitScore = Infinity;
+                let bestEP = null, bestRot = null, minFitScore = Infinity, bestRotH = Infinity;
 
                 const usableW = Math.max(maxWidthLimit - (wallThickness * 2), item.effL, item.effW, item.effH);
                 const usableH = Math.max(maxHeightLimit - (wallThickness * 2), item.effL, item.effW, item.effH);
@@ -1060,13 +1064,15 @@
                     { l: item.effL, w: item.effW, h: item.effH, coreL: item.blockL, coreW: item.blockW, coreH: item.blockH, padL: item.lp, padW: item.wp, padH: item.hp, stackAxis: 'z' },
                     { l: item.effW, w: item.effL, h: item.effH, coreL: item.blockW, coreW: item.blockL, coreH: item.blockH, padL: item.wp, padW: item.lp, padH: item.hp, stackAxis: 'z' },
                     { l: item.effL, w: item.effH, h: item.effW, coreL: item.blockL, coreW: item.blockH, coreH: item.blockW, padL: item.lp, padW: item.hp, padH: item.wp, stackAxis: 'y' },
-                    { l: item.effH, w: item.effW, h: item.effL, coreL: item.blockH, coreW: item.blockW, coreH: item.blockL, padL: item.hp, padW: item.wp, padH: item.lp, stackAxis: 'x' }
+                    { l: item.effH, w: item.effL, h: item.effW, coreL: item.blockH, coreW: item.blockL, coreH: item.blockW, padL: item.hp, padW: item.lp, padH: item.wp, stackAxis: 'y' },
+                    { l: item.effH, w: item.effW, h: item.effL, coreL: item.blockH, coreW: item.blockW, coreH: item.blockL, padL: item.hp, padW: item.wp, padH: item.lp, stackAxis: 'x' },
+                    { l: item.effW, w: item.effH, h: item.effL, coreL: item.blockW, coreW: item.blockH, coreH: item.blockL, padL: item.wp, padW: item.hp, padH: item.lp, stackAxis: 'x' }
                 ];
 
                 for (const ep of eps) {
                     for (const r of rots) {
                         if (ep.y + r.w <= usableW && ep.z + r.h <= usableH) {
-                            const collides = packed.some(p => 
+                            const collides = packed.some(p =>
                                 ep.x < p.x + p.rotL && ep.x + r.l > p.x &&
                                 ep.y < p.y + p.rotW && ep.y + r.w > p.y &&
                                 ep.z < p.z + p.rotH && ep.z + r.h > p.z
@@ -1087,9 +1093,11 @@
                                 } else {
                                     score = ep.x * 10000000 + ep.z * 1000 + ep.y;
                                 }
-                                
-                                if (score < minFitScore) {
+
+                                // 同位置时优先选最小高度（最大面贴地/堆叠面）
+                                if (score < minFitScore || (score === minFitScore && r.h < bestRotH)) {
                                     minFitScore = score;
+                                    bestRotH = r.h;
                                     bestEP = ep;
                                     bestRot = r;
                                 }
