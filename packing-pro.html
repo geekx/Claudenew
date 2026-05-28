@@ -165,6 +165,7 @@
                             <select id="packingStrategy" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
                                 <option value="lowGravity" selected>🥈 智能安全低重心 (优先铺满2.2m底面，再向上堆叠)</option>
                                 <option value="compactXZ">🥇 截面最紧凑 (优先宽高填充，控制长度)</option>
+                                <option value="minCBM">🎯 最小CBM优化 (多策略比选，自动评估单/双箱方案)</option>
                             </select>
                         </div>
                     </div>
@@ -255,6 +256,14 @@
                             <div class="flex justify-between"><span class="text-slate-500">实测外尺寸 (mm):</span><span id="outerDimLabel" class="font-bold text-amber-700 font-mono">0 x 0 x 0</span></div>
                             <div class="flex justify-between border-t border-amber-100 pt-1 mt-1"><span class="text-slate-500">预估外箱体积:</span><span id="boxVolLabel" class="font-bold text-slate-800 font-mono">0 m³</span></div>
                         </div>
+                    </div>
+
+                    <!-- 外箱开料清单 (box mode only) -->
+                    <div id="boxCutListPanel" class="hidden bg-slate-50/80 border border-slate-200 rounded-2xl p-3 mb-3">
+                        <h4 class="text-[10px] font-black text-slate-600 uppercase mb-2 flex items-center gap-1">
+                            <i data-lucide="layers" size="11"></i> 外箱开料清单 <span class="text-slate-400 font-normal normal-case ml-1">(含地脚托)</span>
+                        </h4>
+                        <div id="boxCutListBody" class="text-[11px] font-mono space-y-0.5"></div>
                     </div>
 
                     <!-- 安全重心与搬运点控制面板 -->
@@ -897,7 +906,10 @@
 
                 if (isBoxMode) {
                     if (packTarget === 'autoMin') {
-                        resultData = solveInversePackingBox(flatItems, wallThickness);
+                        const strategy = document.getElementById('packingStrategy').value;
+                        resultData = strategy === 'minCBM'
+                            ? solveMinCBM(flatItems, wallThickness)
+                            : solveInversePackingBox(flatItems, wallThickness);
                     } else {
                         const specs = STANDARD_CARTON_SPECS.filter(s => selectedBoxes.includes(s.id));
                         resultData = solveStandardPacking(flatItems, specs, false, wallThickness);
@@ -1212,6 +1224,66 @@
             return { results: [result], unpacked: [] };
         }
 
+        /**
+         * 最小CBM全局求解：多策略比选 + 单/双箱方案评估
+         */
+        function solveMinCBM(items, wallThickness) {
+            const stratEl = document.getElementById('packingStrategy');
+            const origStrategy = stratEl.value;
+            let best = null;
+            let bestCBM = Infinity;
+
+            // 单箱：用两种策略各跑一遍，取最小CBM
+            for (const strat of ['lowGravity', 'compactXZ']) {
+                stratEl.value = strat;
+                const res = solveInversePackingBox(items, wallThickness);
+                if (res.results[0]) {
+                    const s = res.results[0].spec;
+                    const cbm = s.l * s.w * s.h;
+                    if (cbm < bestCBM) {
+                        bestCBM = cbm;
+                        best = res;
+                    }
+                }
+            }
+
+            // 双箱：只有两件以上才有意义
+            if (items.length >= 2) {
+                // 按体积排序后在各个位置切分，取总CBM最小的双箱方案
+                const sorted = [...items].sort((a, b) => (b.effL*b.effW*b.effH) - (a.effL*a.effW*a.effH));
+                // 仅尝试 1/3、1/2、2/3 三个分割点，避免组合爆炸
+                const splitPoints = [
+                    Math.max(1, Math.floor(sorted.length / 3)),
+                    Math.max(1, Math.floor(sorted.length / 2)),
+                    Math.max(1, Math.floor(sorted.length * 2 / 3))
+                ].filter((v, i, a) => a.indexOf(v) === i);
+
+                for (const sp of splitPoints) {
+                    const groupA = sorted.slice(0, sp);
+                    const groupB = sorted.slice(sp);
+                    for (const strat of ['lowGravity', 'compactXZ']) {
+                        stratEl.value = strat;
+                        const rA = solveInversePackingBox(groupA, wallThickness);
+                        const rB = solveInversePackingBox(groupB, wallThickness);
+                        if (rA.results[0] && rB.results[0]) {
+                            const sA = rA.results[0].spec, sB = rB.results[0].spec;
+                            const dualCBM = sA.l*sA.w*sA.h + sB.l*sB.w*sB.h;
+                            if (dualCBM < bestCBM * 0.92) {  // 双箱需要节省 8% 以上才值得
+                                bestCBM = dualCBM;
+                                // 合并两箱结果，各自带编号
+                                rA.results[0].spec.name = `最小CBM-箱1 (${(sA.l*sA.w*sA.h/1e9).toFixed(3)}m³)`;
+                                rB.results[0].spec.name = `最小CBM-箱2 (${(sB.l*sB.w*sB.h/1e9).toFixed(3)}m³)`;
+                                best = { results: [...rA.results, ...rB.results], unpacked: [], multiBox: true };
+                            }
+                        }
+                    }
+                }
+            }
+
+            stratEl.value = origStrategy;
+            return best || { results: [], unpacked: items };
+        }
+
         // --- 三维图形引擎 ---
         function updateScene() {
             const el = document.getElementById('renderTarget');
@@ -1247,6 +1319,7 @@
             const { l, w, h } = data.spec;
             const isBoxMode = currentMode === 'box';
             const wt = data.wallThickness || 0;
+            const SKID_H = isBoxMode ? 90 : 0;   // 90mm floor skid height for box mode
             const innerL = isBoxMode ? (data.innerL || (l - wt*2)) : l;
             const innerW = isBoxMode ? (data.innerW || (w - wt*2)) : w;
             const innerH = isBoxMode ? (data.innerH || (h - wt*2)) : h;
@@ -1266,7 +1339,7 @@
                     depthWrite: false
                 });
                 const crateMesh = new THREE.Mesh(crateGeo, crateMat);
-                crateMesh.position.set(l / 2, h / 2, w / 2);
+                crateMesh.position.set(l / 2, h / 2 + SKID_H, w / 2);
                 scene.add(crateMesh);
 
                 const crateEdges = new THREE.EdgesGeometry(crateGeo);
@@ -1277,9 +1350,21 @@
                 const innerGeo = new THREE.BoxGeometry(innerL, innerH, innerW);
                 const innerEdges = new THREE.EdgesGeometry(innerGeo);
                 const innerLine = new THREE.LineSegments(innerEdges, new THREE.LineDashedMaterial({ color: 0xb45309, dashSize: 20, gapSize: 10 }));
-                innerLine.position.set(innerL / 2 + wt, innerH / 2 + wt, innerW / 2 + wt);
+                innerLine.position.set(innerL / 2 + wt, innerH / 2 + wt + SKID_H, innerW / 2 + wt);
                 innerLine.computeLineDistances();
                 scene.add(innerLine);
+
+                // 地脚托：3根木方，跨度均匀分布于宽度方向
+                const skidMat = new THREE.MeshPhongMaterial({ color: 0x7c5c1e, shininess: 20 });
+                [0.15, 0.5, 0.85].forEach(frac => {
+                    const skidGeo = new THREE.BoxGeometry(l, SKID_H, 90);
+                    const skid = new THREE.Mesh(skidGeo, skidMat);
+                    skid.position.set(l / 2, SKID_H / 2, w * frac);
+                    scene.add(skid);
+                    const sEdge = new THREE.LineSegments(new THREE.EdgesGeometry(skidGeo), new THREE.LineBasicMaterial({ color: 0x4a3410 }));
+                    sEdge.position.copy(skid.position);
+                    scene.add(sEdge);
+                });
             } else {
                 const wire = new THREE.LineSegments(
                     new THREE.EdgesGeometry(new THREE.BoxGeometry(l, h, w)),
@@ -1296,7 +1381,7 @@
                 const isHighlight = (activeStep !== 0 && idx === activeStep - 1);
                 const startX = item.x + wt;
                 const startY = item.y + wt;
-                const startZ = item.z + wt;
+                const startZ = item.z + wt + SKID_H;   // raise by skid height (0 for container mode)
                 const pL = item.padL || 0;
                 const pW = item.padW || 0;
                 const pH = item.padH || 0;
@@ -1405,11 +1490,11 @@
             });
 
             const cogData = calculateCoGAndHandling(data);
-            render3DHandlingIndicators(cogData, l, w, h, wt, isBoxMode);
+            render3DHandlingIndicators(cogData, l, w, h, wt, isBoxMode, SKID_H);
             updateSafetyUI(cogData, l, w, h);
 
-            camera.position.set(l * 1.6, h * 2.0, w * 1.6);
-            controls.target.set(l / 2, h / 3, w / 2);
+            camera.position.set(l * 1.6, (h + SKID_H) * 2.2, w * 1.6);
+            controls.target.set(l / 2, (h + SKID_H) / 3, w / 2);
             controls.update();
 
             const animate = () => {
@@ -1503,7 +1588,7 @@
             };
         }
 
-        function render3DHandlingIndicators(cogData, l, w, h, wt, isBoxMode) {
+        function render3DHandlingIndicators(cogData, l, w, h, wt, isBoxMode, skidH = 0) {
             const cogGroup = new THREE.Group();
             const matYellow = new THREE.MeshPhongMaterial({ color: 0xfacc15, emissive: 0x3e2723, shininess: 80 });
             const matBlack = new THREE.MeshPhongMaterial({ color: 0x1e293b, emissive: 0x010101, shininess: 80 });
@@ -1513,11 +1598,13 @@
             const semiRight = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 16, Math.PI, Math.PI), matBlack);
             cogGroup.add(semiLeft);
             cogGroup.add(semiRight);
-            cogGroup.position.set(cogData.cogX, cogData.cogZ, cogData.cogY);
+            // CoG 球位置：加上地脚托偏移
+            cogGroup.position.set(cogData.cogX, cogData.cogZ + skidH, cogData.cogY);
             scene.add(cogGroup);
 
+            // 重心垂直投影线（从CoG到地面）
             const dropPoints = [
-                new THREE.Vector3(cogData.cogX, cogData.cogZ, cogData.cogY),
+                new THREE.Vector3(cogData.cogX, cogData.cogZ + skidH, cogData.cogY),
                 new THREE.Vector3(cogData.cogX, 0, cogData.cogY)
             ];
             const dropGeo = new THREE.BufferGeometry().setFromPoints(dropPoints);
@@ -1525,60 +1612,71 @@
             dropLine.computeLineDistances();
             scene.add(dropLine);
 
+            // 地面投影圆环（在地脚托顶面）
             const disk = new THREE.Mesh(
                 new THREE.RingGeometry(isBoxMode ? 15 : 6, isBoxMode ? 40 : 16, 32),
                 new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide, transparent: true, opacity: 0.5 })
             );
             disk.rotation.x = Math.PI / 2;
-            disk.position.set(cogData.cogX, 1, cogData.cogY);
+            disk.position.set(cogData.cogX, skidH + 1, cogData.cogY);
             scene.add(disk);
 
-            cogData.forkliftPoints.forEach(pt => {
-                const blockGeo = new THREE.BoxGeometry(isBoxMode ? 160 : 45, isBoxMode ? 80 : 25, w + 10);
-                const blockMat = new THREE.MeshPhongMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.55 });
-                const block = new THREE.Mesh(blockGeo, blockMat);
-                block.position.set(pt.x, isBoxMode ? 40 : 12, w / 2);
-                scene.add(block);
-
-                const edge = new THREE.LineSegments(new THREE.EdgesGeometry(blockGeo), new THREE.LineBasicMaterial({ color: 0xd97706, linewidth: 2 }));
-                edge.position.copy(block.position);
-                scene.add(edge);
-
-                const flabel = createTextSprite("建议叉孔", "#ffffff", "#f59e0b");
-                flabel.position.set(pt.x, isBoxMode ? 120 : 45, w + (isBoxMode ? 30 : 10));
-                scene.add(flabel);
+            // 叉车叉臂：两根臂从前面（z=0）插入，停在地脚托高度层内
+            // 叉臂沿Z方向（Width方向）插入，在L方向对称分布
+            const tineThick = isBoxMode ? 100 : 35;  // L方向厚度
+            const tineH = isBoxMode ? Math.min(skidH - 10, 75) : 18;  // 高度（低于地脚托）
+            const tineDepth = w * 0.72;               // 插入深度（~72%宽度）
+            cogData.forkliftPoints.forEach((pt, i) => {
+                const tineGeo = new THREE.BoxGeometry(tineThick, tineH, tineDepth);
+                const tineMat = new THREE.MeshPhongMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.80 });
+                const tine = new THREE.Mesh(tineGeo, tineMat);
+                // 从z=0面插入，底面贴地（y=tineH/2）
+                tine.position.set(pt.x, tineH / 2, tineDepth / 2);
+                scene.add(tine);
+                const tineEdge = new THREE.LineSegments(new THREE.EdgesGeometry(tineGeo), new THREE.LineBasicMaterial({ color: 0xd97706, linewidth: 2 }));
+                tineEdge.position.copy(tine.position);
+                scene.add(tineEdge);
             });
+            if (cogData.forkliftPoints.length > 0) {
+                const flabel = createTextSprite('← 叉车方向', '#ffffff', '#f59e0b');
+                flabel.position.set(l / 2, tineH + (isBoxMode ? 60 : 25), -(isBoxMode ? 80 : 25));
+                scene.add(flabel);
+            }
 
+            // 吊装点：蓝色圆环在箱顶四角（含地脚托偏移）
+            const hookH = h + skidH + (isBoxMode ? 1200 : 350);
             cogData.liftingPoints.forEach(pt => {
                 const safeX = Math.max(wt, Math.min(l - wt, pt.x));
                 const safeY = Math.max(wt, Math.min(w - wt, pt.y));
+                const ringY = h + skidH;
 
                 const torus = new THREE.Mesh(
                     new THREE.TorusGeometry(isBoxMode ? 20 : 7, isBoxMode ? 6 : 2, 8, 16),
                     new THREE.MeshPhongMaterial({ color: 0x3b82f6 })
                 );
-                torus.position.set(safeX, h, safeY);
+                torus.position.set(safeX, ringY, safeY);
                 torus.rotation.y = Math.PI / 4;
                 scene.add(torus);
 
                 const ropePoints = [
-                    new THREE.Vector3(safeX, h, safeY),
-                    new THREE.Vector3(cogData.cogX, h + (isBoxMode ? 1200 : 350), cogData.cogY) 
+                    new THREE.Vector3(safeX, ringY, safeY),
+                    new THREE.Vector3(cogData.cogX, hookH, cogData.cogY)
                 ];
                 const ropeGeo = new THREE.BufferGeometry().setFromPoints(ropePoints);
                 const rope = new THREE.Line(ropeGeo, new THREE.LineBasicMaterial({ color: 0x3b82f6, linewidth: 2 }));
                 scene.add(rope);
 
-                const llabel = createTextSprite("安全吊点", "#ffffff", "#3b82f6");
-                llabel.position.set(safeX, h + (isBoxMode ? 85 : 30), safeY);
+                const llabel = createTextSprite('安全吊点', '#ffffff', '#3b82f6');
+                llabel.position.set(safeX, ringY + (isBoxMode ? 85 : 30), safeY);
                 scene.add(llabel);
             });
 
+            // 吊钩
             const hook = new THREE.Mesh(
                 new THREE.SphereGeometry(isBoxMode ? 35 : 12, 16, 16),
                 new THREE.MeshPhongMaterial({ color: 0x2563eb })
             );
-            hook.position.set(cogData.cogX, h + (isBoxMode ? 1200 : 350), cogData.cogY);
+            hook.position.set(cogData.cogX, hookH, cogData.cogY);
             scene.add(hook);
         }
 
@@ -1647,6 +1745,14 @@
             let liftingSvg = '';
 
             if (cogData.largestFace === 'Bottom') {
+                // 底面俯视图：叉臂方向为纵向（W方向），在L轴上各占一竖条
+                cogData.forkliftPoints.forEach(pt => {
+                    const px = offsetX + pt.x * scale;
+                    const tW = Math.max(7, 90 * scale);
+                    forkliftSvg += `<rect x="${px - tW/2}" y="${offsetY + 1}" width="${tW}" height="${rectH - 2}" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5" rx="2" opacity="0.75" />`;
+                    forkliftSvg += `<text x="${px}" y="${offsetY + 11}" font-size="7" fill="#b45309" font-weight="bold" text-anchor="middle">叉臂</text>`;
+                });
+                // 底面：四角吊点
                 cogData.liftingPoints.forEach(pt => {
                     const px = offsetX + pt.x * scale;
                     const py = offsetY + (w - pt.y) * scale;
@@ -1654,17 +1760,18 @@
                     liftingSvg += `<text x="${px}" y="${py - 7}" font-size="7" fill="#1d4ed8" font-weight="black" text-anchor="middle">吊耳</text>`;
                 });
             } else {
+                // 正面/端面：叉臂从底边向上插入
                 cogData.forkliftPoints.forEach(pt => {
                     const px = offsetX + (cogData.largestFace === 'Front' ? pt.x : pt.y) * scale;
                     const py = offsetY + rectH;
                     forkliftSvg += `
-                        <g transform="translate(${px - 14}, ${py - 10})">
-                            <rect width="28" height="10" fill="#f59e0b" rx="2" stroke="#ffffff" stroke-width="1" />
-                            <text x="14" y="7" font-size="6" fill="#ffffff" font-weight="black" text-anchor="middle">建议叉口</text>
+                        <g transform="translate(${px - 14}, ${py - 12})">
+                            <rect width="28" height="12" fill="#f59e0b" rx="2" stroke="#ffffff" stroke-width="1" />
+                            <text x="14" y="8" font-size="6" fill="#ffffff" font-weight="black" text-anchor="middle">叉臂</text>
                         </g>
                     `;
                 });
-
+                // 正面/端面：吊点在顶边
                 const topY = offsetY;
                 cogData.liftingPoints.forEach(pt => {
                     const px = offsetX + (cogData.largestFace === 'Front' ? pt.x : pt.y) * scale;
@@ -1801,13 +1908,40 @@
             
             if (isBoxMode) {
                 const wt = data.wallThickness || 0;
+                const SKID_H = 90;
+                const oL = data.spec.l, oW = data.spec.w, oH = data.spec.h;
+                const wt2 = data.wallThickness || 15;
                 const innerStr = `${data.innerL} x ${data.innerW} x ${data.innerH}`;
-                const outerStr = `${data.spec.l} x ${data.spec.w} x ${data.spec.h}`;
-                const volumeM3 = ((data.spec.l * data.spec.w * data.spec.h) / 1e9).toFixed(3);
+                const outerStr = `${oL} x ${oW} x ${oH + SKID_H} (含90mm地脚托)`;
+                const volumeM3 = ((oL * oW * (oH + SKID_H)) / 1e9).toFixed(3);
 
                 document.getElementById('innerDimLabel').innerText = innerStr;
                 document.getElementById('outerDimLabel').innerText = outerStr;
                 document.getElementById('boxVolLabel').innerText = `${volumeM3} m³`;
+
+                // 开料清单
+                const panels = [
+                    { name: '顶板', qty: 1, l: oL, w: oW, t: wt2 },
+                    { name: '底板', qty: 1, l: oL, w: oW, t: wt2 },
+                    { name: '侧板(长)', qty: 2, l: oL, w: oH - 2*wt2, t: wt2 },
+                    { name: '端板(宽)', qty: 2, l: oW - 2*wt2, w: oH - 2*wt2, t: wt2 },
+                    { name: '地脚托', qty: 3, l: oL, w: SKID_H, t: SKID_H },
+                ];
+                document.getElementById('boxCutListPanel').classList.remove('hidden');
+                document.getElementById('boxCutListBody').innerHTML =
+                    panels.map(p => {
+                        const vol = (p.qty * p.l * p.w * p.t / 1e6).toFixed(1);
+                        return `<div class="flex items-baseline gap-1.5 border-b border-slate-100 py-0.5">
+                            <span class="w-16 text-slate-500 shrink-0">${p.name}</span>
+                            <span class="text-slate-400 shrink-0">×${p.qty}</span>
+                            <span class="flex-1 font-bold text-slate-800">${p.l}<span class="text-slate-400 font-normal">×</span>${p.w}<span class="text-slate-400 font-normal">×${p.t}mm</span></span>
+                            <span class="text-slate-400 text-[9px] shrink-0">${vol}cm³</span>
+                        </div>`;
+                    }).join('') +
+                    `<div class="flex justify-between pt-1 mt-0.5 text-[10px] font-bold text-slate-600">
+                        <span>运输外形 (含地脚托)</span>
+                        <span class="font-mono">${oL}×${oW}×${oH+SKID_H} mm</span>
+                    </div>`;
             }
 
             const detail = document.getElementById('detailBody');
