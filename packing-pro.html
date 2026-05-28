@@ -66,10 +66,13 @@
     <div class="flex flex-1 overflow-hidden">
         <!-- 左侧配置区 -->
         <aside class="w-[430px] bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all">
-            <!-- 模式特定参数面板 -->
-            <div class="p-4 bg-slate-50 border-b flex flex-col gap-3 shrink-0">
-                <h2 class="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><i data-lucide="settings-2" size="14"></i> 工艺装载参数</h2>
-                
+            <!-- 可折叠设置面板 -->
+            <div class="border-b shrink-0 bg-slate-50">
+                <button onclick="toggleSettings()" class="w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-100/80 transition-all">
+                    <span class="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><i data-lucide="settings-2" size="14"></i> 工艺装载参数</span>
+                    <i data-lucide="chevron-down" id="settingsChevron" size="14" class="text-slate-400 transition-transform duration-200"></i>
+                </button>
+                <div id="settingsPanel" class="hidden px-4 pt-2 pb-3 space-y-3">
                 <!-- 货柜模式参数 -->
                 <div id="containerParams" class="space-y-3">
                     <label class="flex items-center gap-3 cursor-pointer">
@@ -166,6 +169,7 @@
                         </div>
                     </div>
                 </div>
+                </div><!-- /settingsPanel -->
             </div>
 
             <!-- 货物清单区 -->
@@ -331,6 +335,14 @@
         let selectedBoxes = ['POST-2', 'WOOD-M1'];
 
         // --- 核心切换控制 ---
+        function toggleSettings() {
+            const panel = document.getElementById('settingsPanel');
+            const chevron = document.getElementById('settingsChevron');
+            const isOpen = !panel.classList.contains('hidden');
+            panel.classList.toggle('hidden', isOpen);
+            chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+        }
+
         function switchMode(mode) {
             currentMode = mode;
             
@@ -1307,7 +1319,7 @@
                             const wSub = item.coreW / qty;
                             for (let i = 0; i < qty; i++) {
                                 subItemsCoords.push({
-                                    w: item.coreL - 2, h: hSub - 2, d: wSub - 2,
+                                    w: item.coreL - 2, h: item.coreH - 2, d: wSub - 2,
                                     cx: startX + pL / 2 + item.coreL / 2,
                                     cy: startZ + pH / 2 + item.coreH / 2,
                                     cz: startY + pW / 2 + (i + 0.5) * wSub
