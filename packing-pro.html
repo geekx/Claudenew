@@ -165,6 +165,7 @@
                             <select id="packingStrategy" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
                                 <option value="lowGravity" selected>🥈 智能安全低重心 (优先铺满2.2m底面，再向上堆叠)</option>
                                 <option value="compactXZ">🥇 截面最紧凑 (优先宽高填充，控制长度)</option>
+                                <option value="flatStack">📦 竖向叠装 (薄板/同型面积件强制叠高，最小底面积)</option>
                                 <option value="minCBM">🎯 最小CBM优化 (多策略比选，自动评估单/双箱方案)</option>
                             </select>
                         </div>
@@ -1179,12 +1180,16 @@
                                     // 智能底面舒适限界平衡：超出舒适底面（如 2.2x2.2m）时，强烈惩罚长度或宽度扩张，转而强制在 3D 空间上向下（平躺）堆叠
                                     let comfortPenalty = 0;
                                     if (tempL > comfortL) {
-                                        comfortPenalty += (tempL - comfortL) * 200000; 
+                                        comfortPenalty += (tempL - comfortL) * 200000;
                                     }
                                     if (tempW > comfortW) {
                                         comfortPenalty += (tempW - comfortW) * 200000;
                                     }
                                     score = ep.z * 1000 + tempL * 10 + tempW * 1 + comfortPenalty + stabilityPenalty;
+                                } else if (packingStrategy === 'flatStack') {
+                                    // 竖向叠装策略：优先在 Z（高度）方向叠放，重度惩罚 L/W 方向扩张
+                                    // 适合薄板件、同型面积件的密集叠装
+                                    score = (ep.x + ep.y) * 1e9 + ep.z + stabilityPenalty;
                                 } else {
                                     score = ep.x * 10000000 + ep.z * 1000 + ep.y + stabilityPenalty;
                                 }
@@ -1272,7 +1277,7 @@
             // 尝试双箱方案，若总CBM优于当前最优（节省4%以上）则更新
             function tryDual(gA, gB) {
                 if (!gA.length || !gB.length) return;
-                for (const strat of ['lowGravity', 'compactXZ']) {
+                for (const strat of ['lowGravity', 'compactXZ', 'flatStack']) {
                     stratEl.value = strat;
                     const rA = solveInversePackingBox(gA, wallThickness);
                     const rB = solveInversePackingBox(gB, wallThickness);
@@ -1289,8 +1294,8 @@
                 }
             }
 
-            // 单箱：用两种策略各跑一遍
-            for (const strat of ['lowGravity', 'compactXZ']) {
+            // 单箱：三种策略各跑一遍（含竖向叠装）
+            for (const strat of ['lowGravity', 'compactXZ', 'flatStack']) {
                 stratEl.value = strat;
                 const res = solveInversePackingBox(items, wallThickness);
                 if (res.results[0]) {
@@ -1917,7 +1922,7 @@
             el.innerHTML = resultData.results.map((res, i) => `
                 <button onclick="switchScheme(${i})" class="px-5 py-3 rounded-2xl text-[11px] font-black shadow-lg border-2 text-left transition-all ${activeIdx == i ? 'bg-blue-600 text-white border-blue-400 scale-105' : 'bg-white text-slate-600 border-white hover:bg-slate-50'}">
                     方案 #${i + 1}: ${res.spec.id}<br>
-                    <span class="text-[9px] opacity-80">填充密实度: ${res.utilization}% | 数量: ${res.packedItems.length}Pcs</span>
+                    <span class="text-[9px] opacity-80">填充密实度: ${res.utilization}% | ${res.packedItems.reduce((s,p)=>s+(p.blockQty||1),0)}件 (${res.packedItems.length}类)</span>
                 </button>
             `).join('');
 
@@ -1958,8 +1963,10 @@
             document.getElementById('containerBadge').innerText = `方案 #${activeIdx + 1}`;
             document.getElementById('containerName').innerText = data.spec.name;
             document.getElementById('utilVal').innerText = `${data.utilization}%`;
-            document.getElementById('countVal').innerText = data.packedItems.length;
-            document.getElementById('stepIndicator').innerText = activeStep == 0 ? "全景模式" : `步骤 ${activeStep} / ${data.packedItems.length}`;
+            const totalPcs = data.packedItems.reduce((s, p) => s + (p.blockQty || 1), 0);
+            const totalTypes = data.packedItems.length;
+            document.getElementById('countVal').innerText = totalPcs === totalTypes ? totalPcs : `${totalPcs}件`;
+            document.getElementById('stepIndicator').innerText = activeStep == 0 ? "全景模式" : `步骤 ${activeStep} / ${totalTypes}`;
             
             if (isBoxMode) {
                 const wt = data.wallThickness || 0;
