@@ -763,14 +763,45 @@
             });
 
             if (newItems.length) {
-                newItems.forEach(item => addCargoRow(item));
-                const prompt = document.createElement('div');
-                prompt.className = "fixed top-20 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-5 py-2.5 rounded-full shadow-lg z-[200] text-xs font-bold";
-                prompt.innerText = `成功智能识别并导入 ${newItems.length} 条 Excel 货物数据`;
-                document.body.appendChild(prompt);
-                setTimeout(() => prompt.remove(), 2500);
+                if (cargoList.length > 0) {
+                    // 已有数据时，弹出替换/追加选项
+                    const existCount = cargoList.length;
+                    const banner = document.createElement('div');
+                    banner.className = "fixed top-16 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl z-[200] text-xs font-medium flex items-center gap-3 border border-slate-700";
+                    banner.innerHTML = `
+                        <i data-lucide="clipboard-list" size="14" class="text-yellow-400 shrink-0"></i>
+                        <span>识别到 <b class="text-yellow-300">${newItems.length} 条</b>新数据，当前已有 <b class="text-slate-300">${existCount} 条</b></span>
+                        <button id="pasteReplace" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold shrink-0">替换</button>
+                        <button id="pasteAppend" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold shrink-0">追加</button>
+                    `;
+                    document.body.appendChild(banner);
+                    lucide.createIcons();
+                    const tid = setTimeout(() => { banner.remove(); newItems.forEach(item => addCargoRow(item)); renderCargoList(); }, 6000);
+                    banner.querySelector('#pasteReplace').onclick = () => {
+                        clearTimeout(tid); banner.remove();
+                        cargoList = []; renderCargoList();
+                        newItems.forEach(item => addCargoRow(item));
+                        showPasteToast(`已替换，共导入 ${newItems.length} 条`);
+                    };
+                    banner.querySelector('#pasteAppend').onclick = () => {
+                        clearTimeout(tid); banner.remove();
+                        newItems.forEach(item => addCargoRow(item));
+                        showPasteToast(`已追加 ${newItems.length} 条，共 ${cargoList.length} 条`);
+                    };
+                } else {
+                    newItems.forEach(item => addCargoRow(item));
+                    showPasteToast(`成功识别并导入 ${newItems.length} 条数据`);
+                }
             }
         });
+
+        function showPasteToast(msg) {
+            const t = document.createElement('div');
+            t.className = "fixed top-20 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-5 py-2.5 rounded-full shadow-lg z-[200] text-xs font-bold";
+            t.innerText = msg;
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 2500);
+        }
 
         /**
          * 相同规格工件智能预合并紧密叠堆函数
@@ -1233,51 +1264,75 @@
             let best = null;
             let bestCBM = Infinity;
 
-            // 单箱：用两种策略各跑一遍，取最小CBM
+            function getShape(it) {
+                const d = [it.effL, it.effW, it.effH].sort((a, b) => a - b);
+                return { min: d[0], mid: d[1], max: d[2] };
+            }
+
+            // 尝试双箱方案，若总CBM优于当前最优（节省4%以上）则更新
+            function tryDual(gA, gB) {
+                if (!gA.length || !gB.length) return;
+                for (const strat of ['lowGravity', 'compactXZ']) {
+                    stratEl.value = strat;
+                    const rA = solveInversePackingBox(gA, wallThickness);
+                    const rB = solveInversePackingBox(gB, wallThickness);
+                    if (rA.results[0] && rB.results[0]) {
+                        const sA = rA.results[0].spec, sB = rB.results[0].spec;
+                        const dualCBM = sA.l*sA.w*sA.h + sB.l*sB.w*sB.h;
+                        if (dualCBM < bestCBM * 0.96) {
+                            bestCBM = dualCBM;
+                            rA.results[0].spec.name = `最小CBM-箱1 (${(sA.l*sA.w*sA.h/1e9).toFixed(3)}m³)`;
+                            rB.results[0].spec.name = `最小CBM-箱2 (${(sB.l*sB.w*sB.h/1e9).toFixed(3)}m³)`;
+                            best = { results: [...rA.results, ...rB.results], unpacked: [], multiBox: true };
+                        }
+                    }
+                }
+            }
+
+            // 单箱：用两种策略各跑一遍
             for (const strat of ['lowGravity', 'compactXZ']) {
                 stratEl.value = strat;
                 const res = solveInversePackingBox(items, wallThickness);
                 if (res.results[0]) {
                     const s = res.results[0].spec;
                     const cbm = s.l * s.w * s.h;
-                    if (cbm < bestCBM) {
-                        bestCBM = cbm;
-                        best = res;
-                    }
+                    if (cbm < bestCBM) { bestCBM = cbm; best = res; }
                 }
             }
 
-            // 双箱：只有两件以上才有意义
             if (items.length >= 2) {
-                // 按体积排序后在各个位置切分，取总CBM最小的双箱方案
-                const sorted = [...items].sort((a, b) => (b.effL*b.effW*b.effH) - (a.effL*a.effW*a.effH));
-                // 仅尝试 1/3、1/2、2/3 三个分割点，避免组合爆炸
-                const splitPoints = [
-                    Math.max(1, Math.floor(sorted.length / 3)),
-                    Math.max(1, Math.floor(sorted.length / 2)),
-                    Math.max(1, Math.floor(sorted.length * 2 / 3))
-                ].filter((v, i, a) => a.indexOf(v) === i);
-
-                for (const sp of splitPoints) {
-                    const groupA = sorted.slice(0, sp);
-                    const groupB = sorted.slice(sp);
-                    for (const strat of ['lowGravity', 'compactXZ']) {
-                        stratEl.value = strat;
-                        const rA = solveInversePackingBox(groupA, wallThickness);
-                        const rB = solveInversePackingBox(groupB, wallThickness);
-                        if (rA.results[0] && rB.results[0]) {
-                            const sA = rA.results[0].spec, sB = rB.results[0].spec;
-                            const dualCBM = sA.l*sA.w*sA.h + sB.l*sB.w*sB.h;
-                            if (dualCBM < bestCBM * 0.92) {  // 双箱需要节省 8% 以上才值得
-                                bestCBM = dualCBM;
-                                // 合并两箱结果，各自带编号
-                                rA.results[0].spec.name = `最小CBM-箱1 (${(sA.l*sA.w*sA.h/1e9).toFixed(3)}m³)`;
-                                rB.results[0].spec.name = `最小CBM-箱2 (${(sB.l*sB.w*sB.h/1e9).toFixed(3)}m³)`;
-                                best = { results: [...rA.results, ...rB.results], unpacked: [], multiBox: true };
-                            }
-                        }
-                    }
+                // --- 策略A：按体积排序，1/3·1/2·2/3 三个切分点 ---
+                const byVol = [...items].sort((a, b) => (b.effL*b.effW*b.effH) - (a.effL*a.effW*a.effH));
+                for (const sp of [
+                    Math.max(1, Math.floor(byVol.length / 3)),
+                    Math.max(1, Math.floor(byVol.length / 2)),
+                    Math.max(1, Math.floor(byVol.length * 2 / 3))
+                ].filter((v, i, a) => a.indexOf(v) === i)) {
+                    tryDual(byVol.slice(0, sp), byVol.slice(sp));
                 }
+
+                // 形状分类阈值
+                const FLAT_MM = 15;   // 最小尺寸 ≤ 15mm → 薄板（5mm板材等）
+                const ELONG_R = 8;    // 最大/最小 ≥ 8 → 细长件（方棍、圆棒等）
+
+                const flatG  = items.filter(it => { const s = getShape(it); return s.min <= FLAT_MM; });
+                const elongG = items.filter(it => { const s = getShape(it); return s.max / Math.max(s.min, 1) >= ELONG_R && s.min > FLAT_MM; });
+                const otherG = items.filter(it => { const s = getShape(it); return s.min > FLAT_MM && s.max / Math.max(s.min, 1) < ELONG_R; });
+
+                // --- 策略B：薄板 vs 细长件+其他 ---
+                tryDual(flatG, [...elongG, ...otherG]);
+                // --- 策略C：细长件 vs 薄板+其他 ---
+                tryDual(elongG, [...flatG, ...otherG]);
+                // --- 策略D：薄板+细长件 vs 其他（异形整体 vs 方块件） ---
+                tryDual([...flatG, ...elongG], otherG);
+
+                // --- 策略E：按最大尺寸排序，长件 vs 短件 ---
+                const byMax = [...items].sort((a, b) => Math.max(b.effL,b.effW,b.effH) - Math.max(a.effL,a.effW,a.effH));
+                tryDual(byMax.slice(0, Math.floor(byMax.length / 2)), byMax.slice(Math.floor(byMax.length / 2)));
+
+                // --- 策略F：按最小尺寸排序，厚件 vs 薄件 ---
+                const byMin = [...items].sort((a, b) => Math.min(a.effL,a.effW,a.effH) - Math.min(b.effL,b.effW,b.effH));
+                tryDual(byMin.slice(0, Math.floor(byMin.length / 2)), byMin.slice(Math.floor(byMin.length / 2)));
             }
 
             stratEl.value = origStrategy;
