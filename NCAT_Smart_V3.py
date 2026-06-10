@@ -192,6 +192,28 @@ class TranslationMemory:
                     'lang_pairs': [{'source': r[0], 'target': r[1], 'count': r[2]} for r in lang_pairs]
                 }
 
+    def purge_invalid(self) -> int:
+        """
+        清洗污染记录：译文=原文（旧版失败回退存库），
+        或译文与该记录的目标语言明显不符（如日文库里存了纯中文长句）。
+        返回删除的记录数。
+        """
+        removed = 0
+        with self._lock:
+            with self._get_conn() as conn:
+                rows = conn.execute(
+                    'SELECT source_text, target_text, source_lang, target_lang FROM tm'
+                ).fetchall()
+                bad = [(s, sl, tl) for s, t, sl, tl in rows
+                       if s.strip() == t.strip() or not tm_matches_target_language(t, tl)]
+                for s, sl, tl in bad:
+                    conn.execute(
+                        'DELETE FROM tm WHERE source_text=? AND source_lang=? AND target_lang=?',
+                        (s, sl, tl)
+                    )
+                removed = len(bad)
+        return removed
+
     def clear(self):
         """清除所有TM记录"""
         with self._lock:
@@ -207,6 +229,10 @@ def get_tm() -> Optional[TranslationMemory]:
             db_path = os.path.join(get_script_directory(), DEFAULT_CONFIG['TM_DB'])
             _translation_memory = TranslationMemory(db_path)
             print(f"📝 TM loaded: {db_path}")
+            # 每次会话首次加载时清洗一遍历史污染记录
+            purged = _translation_memory.purge_invalid()
+            if purged:
+                print(f"🧹 TM purged {purged} polluted entries | 清理{purged}条污染记忆")
         except Exception as e:
             print(f"TM initialization error: {e}")
     return _translation_memory
@@ -483,28 +509,35 @@ _WESTERN_TARGET_WORDS = ('english', 'german', 'french', 'spanish', 'italian', 'p
 
 def tm_matches_target_language(text: str, target_lang: str) -> bool:
     """
-    TM命中结果与目标语言的符合性校验。
-    保守策略：只拒绝明显不符的（如目标是西文但译文主要是中文），
-    避免误杀日文这类「汉字+假名」混排的合法译文。
+    译文与目标语言的符合性校验（用于TM读取、TM写入、TM清洗、结果回填）。
+    要点：日文长句必须含假名——纯汉字长段基本是中文污染（旧版失败回退存库所致）；
+    短拉丁串（人名/型号/产品名）各语种均放行。
     """
     if not text or not text.strip():
         return False
     tl = (target_lang or '').lower()
-    has_kana = bool(re.search('[぀-ヿ]', text))
-    has_hangul = bool(re.search('[가-힯]', text))
-    has_cjk = bool(re.search('[一-鿿]', text))
-    detected = detect_text_language_simple(text)
+    t = text.strip()
+    kana_n = len(re.findall('[぀-ヿ]', t))
+    hangul_n = len(re.findall('[가-힯]', t))
+    cjk_n = len(re.findall('[一-鿿]', t))
+    detected = detect_text_language_simple(t)
+    short_latin = (kana_n == 0 and hangul_n == 0 and cjk_n == 0 and len(t) <= 20)
 
     if 'japanese' in tl or '日文' in tl or '日语' in tl:
-        # 日文译文应含假名或汉字（纯西文长句视为污染）
-        return has_kana or has_cjk
+        if kana_n > 0:
+            return True            # 含假名 → 日文
+        if cjk_n > 0:
+            return cjk_n <= 8      # 纯汉字仅短语放行（标题类）；长句无假名基本是中文
+        return short_latin          # 短拉丁串(人名/型号)放行
     if 'korean' in tl or '韩' in tl or '朝鲜' in tl:
-        return has_hangul or detected == 'other'
+        return hangul_n > 0 or short_latin
     if _is_chinese_lang(target_lang) or 'chinese' in tl:
-        return detected in ('chinese', 'mixed') and not has_kana and not has_hangul
+        if kana_n > 0 or hangul_n > 0:
+            return False
+        return detected in ('chinese', 'mixed') or (short_latin and len(t) <= 12)
     if any(w in tl for w in _WESTERN_TARGET_WORDS):
         # 西文目标：不应主要是中文，也不应含假名/谚文
-        return detected != 'chinese' and not has_kana and not has_hangul
+        return detected != 'chinese' and kana_n == 0 and hangul_n == 0
     return True  # 其他语种不做强校验
 
 
@@ -1738,6 +1771,21 @@ def translate_unique_texts(translator, unique_texts, source_lang, target_lang,
     else:
         result_map = run_stage(work, source_lang, target_lang, context_hint, need_capitalize)
 
+    # 修复轮：批次错位/整批失败会让个别段落原样返回或语言不符，
+    # 这里逐段补译一次（直译源→目标，跳过中转），防止"某段还是原文"漏网
+    failed_keys = [k for k, v in result_map.items()
+                   if (not v) or v.strip() == k.strip()
+                   or not tm_matches_target_language(clean_dnt_tags(v), target_lang)]
+    if failed_keys:
+        progress_callback.info(f"Repairing {len(failed_keys)} failed/mismatched segments | 补译{len(failed_keys)}个失败或语言不符的段落")
+        for k in failed_keys[:50]:  # 上限保护，避免异常情况下token失控
+            try:
+                r = translator._translate_single(k, source_lang, target_lang, formality, context_hint)
+                if r and r.strip() != k.strip() and tm_matches_target_language(clean_dnt_tags(r), target_lang):
+                    result_map[k] = capitalize_first_letter(r) if need_capitalize else r
+            except Exception as e:
+                print(f"Repair translate error: {e}")
+
     return result_map
 
 
@@ -1830,10 +1878,11 @@ def process_ppt_elements(elements: List[PPTElementInfo], term_map, term_re, tran
             translator, unique_texts, source_lang, target_lang,
             formality, adv, progress_callback, need_capitalize
         )
-        # 按「原文」键写回 TM，保证下次按原文命中
+        # 按「原文」键写回 TM；写入前校验译文语言，杜绝新污染
         if tm:
             tm_pairs = [(protected_to_source.get(p, p), clean_dnt_tags(t))
                         for p, t in api_translation_map.items()]
+            tm_pairs = [(s, t) for s, t in tm_pairs if tm_matches_target_language(t, target_lang)]
             tm.store_batch(tm_pairs, source_lang, target_lang)
 
     # 回填结果并调整字号
@@ -1854,6 +1903,9 @@ def process_ppt_elements(elements: List[PPTElementInfo], term_map, term_re, tran
             # Prefer TM hit, then API result, then original
             final_text = tm_hit_map.get(protected_text) or api_translation_map.get(protected_text, elem_info.original_text)
             final_text = clean_dnt_tags(final_text)
+            # 兜底：结果语言明显不符时保留原文，不把半成品写进文档
+            if final_text.strip() != elem_info.original_text.strip() and not tm_matches_target_language(final_text, target_lang):
+                final_text = elem_info.original_text
             elem_info.translated_text = final_text
 
             if elem_info.original_text != final_text:
@@ -1958,6 +2010,7 @@ def process_text_elements(elements, term_map, term_re, translator, source_lang, 
         if tm:
             tm_pairs = [(protected_to_source.get(p, p), clean_dnt_tags(t))
                         for p, t in api_translation_map.items()]
+            tm_pairs = [(s, t) for s, t in tm_pairs if tm_matches_target_language(t, target_lang)]
             tm.store_batch(tm_pairs, source_lang, target_lang)
 
     progress_callback.status("Updating document... | 更新文档...")
@@ -1974,6 +2027,9 @@ def process_text_elements(elements, term_map, term_re, translator, source_lang, 
             protected_text = protect_and_replace_terms(original_text, term_map, term_re)
             final_text = tm_hit_map.get(protected_text) or api_translation_map.get(protected_text, original_text)
             final_text = clean_dnt_tags(final_text)
+            # 兜底：结果语言明显不符时保留原文，不把半成品写进文档
+            if final_text.strip() != original_text.strip() and not tm_matches_target_language(final_text, target_lang):
+                final_text = original_text
 
             if original_text != final_text:
                 try:
