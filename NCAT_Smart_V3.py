@@ -231,6 +231,7 @@ class ProgressCallback:
     def error(self, message: str): self(message_type="error", message=message)
     def info(self, message: str): self(message_type="info", message=message)
     def batch_progress(self, current: int, total: int, filename: str): self(message_type="batch_progress", message=f"{current}/{total}|{filename}")
+    def file_done(self, filename: str): self(message_type="file_done", message=filename)
     def clear_status(self): self(message_type="clear", message="")
 
 
@@ -2224,6 +2225,8 @@ def run_batch_translation(settings, progress_callback):
             successful_files += 1
             output_name = f"{os.path.splitext(os.path.basename(file_path))[0]}--OP{os.path.splitext(file_path)[1]}"
             processed_files.append(output_name)
+        # 通知前端：这张文档牌可以飞向角落了（失败的也要离场，避免牌堆卡住）
+        progress_callback.file_done(os.path.basename(file_path))
     
     if processed_files:
         completed_list = "Completed files:\n" + "\n".join([f"✓ {fp}" for fp in processed_files])
@@ -3303,6 +3306,74 @@ def get_html_content():
         .log-entry.tm-hit { color: #03dac6; }
         .log-entry.error { color: #ff5f57; }
         .log-entry.info { color: #888; }
+
+        /* ===== 批量翻译：扑克牌扇 + 碎纸机字符上飘 ===== */
+        .card-fan-container {
+            position: relative;
+            width: 100%;
+            height: 175px;
+            margin: 8px 0 4px;
+            perspective: 900px;
+            overflow: visible;
+        }
+        .doc-card {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 104px;
+            height: 134px;
+            margin-left: -52px;
+            margin-top: -78px;
+            background: linear-gradient(150deg, rgba(22,42,64,0.97), rgba(12,26,46,0.97));
+            border: 1px solid rgba(3, 218, 198, 0.3);
+            border-radius: 10px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+            transform-origin: 50% 135%;
+            transition: transform 0.55s cubic-bezier(0.22, 0.9, 0.3, 1.15), box-shadow 0.4s, border-color 0.4s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            overflow: hidden;
+        }
+        .doc-card .doc-icon { font-size: 28px; }
+        .doc-card .doc-name {
+            font-size: 9px;
+            color: #9adfd6;
+            max-width: 92px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            padding: 0 6px;
+        }
+        .doc-card .doc-state { font-size: 9px; color: #557; }
+        .doc-card.front {
+            border-color: #03dac6;
+            box-shadow: 0 10px 28px rgba(3, 218, 198, 0.35);
+        }
+        .doc-card.front .doc-state { color: #03dac6; }
+        .doc-card.done-fly {
+            animation: cardFlyCorner 0.8s cubic-bezier(0.5, -0.2, 0.85, 0.6) forwards;
+        }
+        @keyframes cardFlyCorner {
+            0%   { opacity: 1; }
+            55%  { opacity: 1; }
+            100% { transform: translate(200px, -190px) rotate(55deg) scale(0.22); opacity: 0; }
+        }
+        .char-bit {
+            position: absolute;
+            font-size: 11px;
+            color: rgba(3, 218, 198, 0.95);
+            text-shadow: 0 0 6px rgba(3, 218, 198, 0.5);
+            pointer-events: none;
+            z-index: 300;
+            animation: charRise 1.15s ease-out forwards;
+        }
+        @keyframes charRise {
+            0%   { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+            100% { opacity: 0; transform: translate(var(--dx), -95px) rotate(var(--rot)) scale(0.55); }
+        }
     </style>
 </head>
 <body>
@@ -3353,7 +3424,7 @@ def get_html_content():
                     <button class="btn btn-primary" id="advContinueBtn">Continue | 继续</button>`,
                 TRANSLATION_FORMALITY: `<div class="title">Formality | 正式度</div><div class="subtitle">Output register (Trados-style) | 输出风格</div><div class="formality-options"><div class="formality-option" data-formality="formal"><span class="formality-icon">🎩</span><div class="formality-label"><div class="formality-label-title">Formal | 正式</div><div class="formality-label-desc">Business, legal, academic | 商务、法律、学术</div></div></div><div class="formality-option selected" data-formality="auto"><span class="formality-icon">⚖️</span><div class="formality-label"><div class="formality-label-title">Auto | 自动</div><div class="formality-label-desc">Match source document | 匹配原文风格</div></div></div><div class="formality-option" data-formality="informal"><span class="formality-icon">💬</span><div class="formality-label"><div class="formality-label-title">Informal | 非正式</div><div class="formality-label-desc">Conversational, casual | 对话、轻松</div></div></div></div><button class="btn btn-primary" id="formalityConfirmBtn">Start Translation | 开始翻译</button>`,
                 TRANSLATING: `<div class="title">Translating | 翻译中</div><div class="wave-container"><div class="wave-circle"></div><div class="wave-ring"></div><div class="wave-ring"></div><div class="wave-ring"></div></div><div class="shred-container" id="shred-container"></div><div class="subtitle" id="progress-label">Processing... | 处理中...</div><div class="progress-log" id="progress-log"></div>`,
-                BATCH_TRANSLATING: `<div class="title">Batch Translation | 批量翻译</div><div class="file-counter"><span>File</span><span class="file-counter-num" id="file-num">1/1</span></div><div class="wave-container"><div class="wave-circle"></div><div class="wave-ring"></div><div class="wave-ring"></div><div class="wave-ring"></div></div><div class="shred-container" id="shred-container"></div><div class="current-file" id="batch-current">Initializing...</div><div class="progress-container"><div class="progress-bar"><div class="progress-fill"></div></div></div><div class="progress-log" id="progress-log"></div>`,
+                BATCH_TRANSLATING: `<div class="title">Batch Translation | 批量翻译</div><div class="file-counter"><span>File</span><span class="file-counter-num" id="file-num">1/1</span></div><div class="card-fan-container" id="card-fan"></div><div class="current-file" id="batch-current">Initializing...</div><div class="progress-container"><div class="progress-bar"><div class="progress-fill"></div></div></div><div class="progress-log" id="progress-log"></div>`,
                 EXCEL_EXCLUDE: `<div class="title">Excel Options | Excel选项</div><div class="subtitle">Exclude cells (e.g., A/1/A:C) | 排除单元格</div><div class="input-group"><input type="text" class="input-field" id="excludeRule" placeholder="A/1/A:C"></div><div class="btn-group"><button class="btn btn-primary" id="excelContinueBtn">Apply | 应用</button><button class="btn btn-secondary" id="excelSkipBtn">Skip | 跳过</button></div>`,
                 BATCH_EXCEL_EXCLUDE: `<div class="title">Batch Excel Options | 批量Excel选项</div><div class="subtitle">Apply to all Excel files | 应用到所有Excel文件</div><div class="input-group"><input type="text" class="input-field" id="batchExcludeRule" placeholder="A/1/A:C"></div><div class="btn-group"><button class="btn btn-primary" id="batchExcelContinueBtn">Apply | 应用</button><button class="btn btn-secondary" id="batchExcelSkipBtn">Skip | 跳过</button></div>`,
                 COMPLETE: `<div class="title">Complete! | 完成!</div><div class="subtitle" id="complete-message"></div><button class="btn btn-primary" id="anotherBtn">Translate Another | 再翻译一个</button>`
@@ -3472,6 +3543,93 @@ def get_html_content():
                 }
             };
             // ===== 卡片撕碎动效结束 =====
+
+            // ===== 批量翻译：扑克牌扇动效 =====
+            let batchCards = [];      // [{name, el, done}]
+            let lastBitTime = 0;      // 字符上飘节流
+
+            const docIconFor = (name) => {
+                const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
+                if (ext === '.docx') return '📄';
+                if (ext === '.pptx') return '📑';
+                if (ext === '.xlsx' || ext === '.xls') return '📊';
+                return '📃';
+            };
+
+            const layoutCardFan = () => {
+                // 像捻开的扑克牌：当前文档在最前(正位)，其余依次向右扇开、垫在后面
+                const remaining = batchCards.filter(c => !c.done && !c.flying);
+                remaining.forEach((c, k) => {
+                    c.el.classList.toggle('front', k === 0);
+                    c.el.style.zIndex = 100 - k;
+                    const rot = k * 13;
+                    const scale = k === 0 ? 1.07 : Math.max(0.88, 1 - k * 0.035);
+                    c.el.style.transform = `rotate(${rot}deg) scale(${scale})`;
+                    const stateEl = c.el.querySelector('.doc-state');
+                    if (stateEl) stateEl.textContent = k === 0 ? 'Translating… | 翻译中' : 'Queued | 排队中';
+                });
+            };
+
+            const initCardFan = (files) => {
+                const container = document.getElementById('card-fan');
+                if (!container) return;
+                container.innerHTML = '';
+                batchCards = (files || []).map(fp => {
+                    const name = String(fp).split(/[\\\\/]/).pop();
+                    const card = document.createElement('div');
+                    card.className = 'doc-card';
+                    card.innerHTML = `<div class="doc-icon">${docIconFor(name)}</div><div class="doc-name">${name}</div><div class="doc-state"></div>`;
+                    container.appendChild(card);
+                    return { name, el: card, done: false, flying: false };
+                });
+                layoutCardFan();
+            };
+
+            const flyOutCard = (name) => {
+                // 译完的牌飞向右上角消失；找不到同名时按顺序飞最前一张
+                const c = batchCards.find(x => !x.done && !x.flying && x.name === name)
+                       || batchCards.find(x => !x.done && !x.flying);
+                if (!c) return;
+                c.flying = true;
+                c.el.style.zIndex = 250;
+                const stateEl = c.el.querySelector('.doc-state');
+                if (stateEl) stateEl.textContent = 'Done ✓ | 完成';
+                c.el.classList.add('done-fly');
+                setTimeout(() => { c.done = true; c.el.remove(); }, 850);
+                // 下一张牌立刻转正补位
+                setTimeout(() => layoutCardFan(), 120);
+            };
+
+            const spawnCharBits = (text) => {
+                // 碎纸机效果：正在翻译的字符从前牌向上飘飞
+                const container = document.getElementById('card-fan');
+                if (!container || !text) return;
+                const now = Date.now();
+                if (now - lastBitTime < 320) return;  // 节流，避免刷屏
+                lastBitTime = now;
+                const chars = text.replace(/\s+/g, '').slice(0, 12).split('');
+                chars.forEach((ch, i) => {
+                    setTimeout(() => {
+                        if (!document.getElementById('card-fan')) return;
+                        const bit = document.createElement('span');
+                        bit.className = 'char-bit';
+                        bit.textContent = ch;
+                        bit.style.left = (50 + (Math.random() - 0.5) * 20) + '%';
+                        bit.style.top = (30 + Math.random() * 12) + '%';
+                        bit.style.setProperty('--dx', ((Math.random() - 0.5) * 80) + 'px');
+                        bit.style.setProperty('--rot', ((Math.random() - 0.5) * 260) + 'deg');
+                        container.appendChild(bit);
+                        setTimeout(() => bit.remove(), 1250);
+                    }, i * 50);
+                });
+            };
+
+            const flyOutRemainingCards = () => {
+                batchCards.filter(c => !c.done && !c.flying).forEach((c, i) => {
+                    setTimeout(() => flyOutCard(c.name), i * 150);
+                });
+            };
+            // ===== 扑克牌扇动效结束 =====
             
             const updateStatusInfo = (label, value) => {
                 statusInfo.label = label;
@@ -3543,9 +3701,12 @@ def get_html_content():
                     document.getElementById('suggested-lang').textContent = settings.targetLang;
                 } else if (state === 'FILE_SELECT') {
                     loadInitialData();
-                } else if (state === 'TRANSLATING' || state === 'BATCH_TRANSLATING') {
-                    // 启动撕碎动效
+                } else if (state === 'TRANSLATING') {
+                    // 单文件：启动撕碎动效
                     setTimeout(() => startShredAnimation(), 500);
+                } else if (state === 'BATCH_TRANSLATING') {
+                    // 批量：扑克牌扇动效，一张牌对应一个文档
+                    setTimeout(() => initCardFan(settings.filePaths || []), 100);
                 }
                 
                 switch (state) {
@@ -3927,6 +4088,7 @@ def get_html_content():
                         appendProgressLog(data.text);
                         if (data.text && data.text.length > 5) {
                             createTextCard(data.text.substring(0, 36) + (data.text.length > 36 ? '...' : ''));
+                            spawnCharBits(data.text);  // 批量模式：字符从前牌向上飘飞
                         }
                         break;
                     }
@@ -3939,7 +4101,19 @@ def get_html_content():
                             currentLabel.textContent = filename;
                             updateStatusInfo('Batch Progress', `${progress} - ${filename}`);
                             appendProgressLog(`[${progress}] ${filename}`);
+                            // 兜底：进入第n个文件时，确保前n-1张牌已飞出（即使file_done事件丢失）
+                            const n = parseInt(progress.split('/')[0], 10);
+                            if (!isNaN(n)) {
+                                let flown = batchCards.filter(c => c.done || c.flying).length;
+                                while (flown < n - 1) { flyOutCard(); flown++; }
+                            }
                         }
+                        break;
+                    }
+                    case 'file_done': {
+                        // 单个文档翻译完成：对应的牌飞向角落消失
+                        flyOutCard(data.text);
+                        appendProgressLog(`✓ ${data.text}`, 'tm-hit');
                         break;
                     }
                 }
@@ -3947,8 +4121,18 @@ def get_html_content():
             
             window.showCompletion = (message) => {
                 stopShredAnimation();
-                updateStatusInfo('Complete | 完成', 'Translation finished | 翻译完成');
-                renderState('COMPLETE', message);
+                const pending = batchCards.filter(c => !c.done && !c.flying).length;
+                if (pending > 0) {
+                    // 让剩余的牌依次飞出后再切换完成页
+                    flyOutRemainingCards();
+                    setTimeout(() => {
+                        updateStatusInfo('Complete | 完成', 'Translation finished | 翻译完成');
+                        renderState('COMPLETE', message);
+                    }, pending * 150 + 900);
+                } else {
+                    updateStatusInfo('Complete | 完成', 'Translation finished | 翻译完成');
+                    renderState('COMPLETE', message);
+                }
             };
             
             window.addEventListener('pywebviewready', () => {
