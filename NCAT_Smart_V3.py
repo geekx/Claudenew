@@ -152,6 +152,8 @@ class TranslationMemory:
         """存储翻译对到记忆库"""
         if not source or not target or not source.strip() or not target.strip():
             return
+        if source.strip() == target.strip():
+            return  # 译文=原文多为翻译失败的回退结果，不入库以免污染
         with self._lock:
             with self._get_conn() as conn:
                 conn.execute(
@@ -173,7 +175,8 @@ class TranslationMemory:
                        VALUES (?, ?, ?, ?, ?)
                        ON CONFLICT(source_text, source_lang, target_lang)
                        DO UPDATE SET target_text=excluded.target_text, norm_key=excluded.norm_key, use_count=use_count+1, updated_at=datetime("now")''',
-                    [(s.strip(), t.strip(), source_lang.lower(), target_lang.lower(), normalize_tm_key(s)) for s, t in pairs if s and t]
+                    [(s.strip(), t.strip(), source_lang.lower(), target_lang.lower(), normalize_tm_key(s))
+                     for s, t in pairs if s and t and s.strip() and t.strip() and s.strip() != t.strip()]
                 )
 
     def get_stats(self) -> Dict:
@@ -458,10 +461,10 @@ def is_text_already_target_language(text: str, target_lang: str) -> bool:
     """
     if not text or not text.strip():
         return True  # 空文本不需要翻译
-    
+
     detected = detect_text_language_simple(text)
     target_lower = target_lang.lower()
-    
+
     # 检查目标语言是否匹配检测结果
     if detected == 'chinese':
         return any(lang in target_lower for lang in ['chinese', 'mandarin', 'zh', '中文', '简体', '繁体'])
@@ -471,6 +474,38 @@ def is_text_already_target_language(text: str, target_lang: str) -> bool:
         return False  # 混合语言总是需要翻译
     else:
         return False  # 其他语言需要进一步处理
+
+
+_WESTERN_TARGET_WORDS = ('english', 'german', 'french', 'spanish', 'italian', 'portuguese',
+                         'dutch', 'swedish', 'norwegian', 'danish', 'finnish', 'polish',
+                         '英', '德', '法', '西班牙', '意大利', '葡萄牙', '荷兰')
+
+
+def tm_matches_target_language(text: str, target_lang: str) -> bool:
+    """
+    TM命中结果与目标语言的符合性校验。
+    保守策略：只拒绝明显不符的（如目标是西文但译文主要是中文），
+    避免误杀日文这类「汉字+假名」混排的合法译文。
+    """
+    if not text or not text.strip():
+        return False
+    tl = (target_lang or '').lower()
+    has_kana = bool(re.search('[぀-ヿ]', text))
+    has_hangul = bool(re.search('[가-힯]', text))
+    has_cjk = bool(re.search('[一-鿿]', text))
+    detected = detect_text_language_simple(text)
+
+    if 'japanese' in tl or '日文' in tl or '日语' in tl:
+        # 日文译文应含假名或汉字（纯西文长句视为污染）
+        return has_kana or has_cjk
+    if 'korean' in tl or '韩' in tl or '朝鲜' in tl:
+        return has_hangul or detected == 'other'
+    if _is_chinese_lang(target_lang) or 'chinese' in tl:
+        return detected in ('chinese', 'mixed') and not has_kana and not has_hangul
+    if any(w in tl for w in _WESTERN_TARGET_WORDS):
+        # 西文目标：不应主要是中文，也不应含假名/谚文
+        return detected != 'chinese' and not has_kana and not has_hangul
+    return True  # 其他语种不做强校验
 
 
 class BackgroundLoader:
@@ -551,8 +586,8 @@ class DeepSeekTranslator:
     def detect_language(self, text_samples: List[str]) -> str:
         if not text_samples: return "English"
         try:
-            sample_text = " ".join(text_samples)
-            payload = { "model": DEFAULT_CONFIG['MODEL_FAST'], "messages": [{"role": "system", "content": "You are a language detection expert. Identify the language of the given text and respond with only the language name in English. Do not provide any explanation."}, {"role": "user", "content": f"Detect the language of this text: {sample_text}"}], "temperature": 0.1, "max_tokens": 20 }
+            sample_text = "\n".join(text_samples)
+            payload = { "model": DEFAULT_CONFIG['MODEL_FAST'], "messages": [{"role": "system", "content": "You are a language detection expert. Identify the DOMINANT language of the given text samples (they come from one document; ignore brief foreign words, numbers and codes). Respond with exactly one standard English language name, e.g. English, German, French, Spanish, Japanese, Chinese (Simplified). No explanation."}, {"role": "user", "content": f"Text samples:\n{sample_text}"}], "temperature": 0.1, "max_tokens": 20 }
             response = self.session.post(self.base_url, headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}, json=payload, timeout=10)
             if response.status_code == 200:
                 result = response.json()
@@ -1742,6 +1777,7 @@ def process_ppt_elements(elements: List[PPTElementInfo], term_map, term_re, tran
     texts_to_translate = []
     skipped_count = 0
     tm_hit_count = 0
+    tm_rejected_count = 0
     tm_hit_map: Dict[str, str] = {}            # protected_text -> TM translation
     protected_to_source: Dict[str, str] = {}   # protected_text -> raw original (for TM write-back)
 
@@ -1762,15 +1798,21 @@ def process_ppt_elements(elements: List[PPTElementInfo], term_map, term_re, tran
             if tm:
                 tm_result = tm.lookup(original_text, source_lang, target_lang, fuzzy=adv.get('fuzzyTM', True))
                 if tm_result:
-                    tm_hit_map[protected_text] = tm_result
-                    tm_hit_count += 1
-                    continue
+                    # 符合性校验：记忆结果必须像目标语言，且不能等于原文（防污染）
+                    if tm_result.strip() != original_text.strip() and tm_matches_target_language(tm_result, target_lang):
+                        tm_hit_map[protected_text] = tm_result
+                        tm_hit_count += 1
+                        continue
+                    else:
+                        tm_rejected_count += 1
             texts_to_translate.append(protected_text)
 
     if skipped_count > 0:
         progress_callback.info(f"Skipped {skipped_count} (already target lang) | 跳过{skipped_count}个已是目标语言")
     if tm_hit_count > 0:
         progress_callback.info(f"TM hits: {tm_hit_count} segments from memory | TM命中: {tm_hit_count}个来自记忆库")
+    if tm_rejected_count > 0:
+        progress_callback.info(f"TM rejected: {tm_rejected_count} (target-language mismatch) | TM拒用: {tm_rejected_count}个与目标语言不符，将重新翻译")
 
     if not texts_to_translate and not tm_hit_map:
         progress_callback.status("No text requires translation | 没有文本需要翻译")
@@ -1866,6 +1908,7 @@ def process_text_elements(elements, term_map, term_re, translator, source_lang, 
     texts_to_translate = []
     skipped_count = 0
     tm_hit_count = 0
+    tm_rejected_count = 0
     tm_hit_map: Dict[str, str] = {}
     protected_to_source: Dict[str, str] = {}
 
@@ -1883,15 +1926,21 @@ def process_text_elements(elements, term_map, term_re, translator, source_lang, 
             if tm:
                 tm_result = tm.lookup(original_text, source_lang, target_lang, fuzzy=adv.get('fuzzyTM', True))
                 if tm_result:
-                    tm_hit_map[protected_text] = tm_result
-                    tm_hit_count += 1
-                    continue
+                    # 符合性校验：记忆结果必须像目标语言，且不能等于原文（防污染）
+                    if tm_result.strip() != original_text.strip() and tm_matches_target_language(tm_result, target_lang):
+                        tm_hit_map[protected_text] = tm_result
+                        tm_hit_count += 1
+                        continue
+                    else:
+                        tm_rejected_count += 1
             texts_to_translate.append(protected_text)
 
     if skipped_count > 0:
         progress_callback.info(f"Skipped {skipped_count} (already target lang) | 跳过{skipped_count}个已是目标语言")
     if tm_hit_count > 0:
         progress_callback.info(f"TM hits: {tm_hit_count} segments | TM命中{tm_hit_count}个段落")
+    if tm_rejected_count > 0:
+        progress_callback.info(f"TM rejected: {tm_rejected_count} (target-language mismatch) | TM拒用: {tm_rejected_count}个与目标语言不符，将重新翻译")
 
     if not texts_to_translate and not tm_hit_map:
         progress_callback.status("No text requires translation | 没有文本需要翻译")
@@ -1982,11 +2031,36 @@ def get_inspirational_quote(api_key: str) -> str:
         return random.choice(["山重水复疑无路，柳暗花明又一村！", "宝剑锋从磨砺出，梅花香自苦寒来！"])
 
 
+def detect_source_language_locally(samples: List[str]) -> Optional[str]:
+    """
+    本地字符统计快速判定源语言（不调用API，更稳更快）。
+    中/日/韩等有明确字符区间的语言直接判定；
+    拉丁字母为主时无法区分英/德/法等，返回None交给API细分。
+    """
+    text = " ".join(samples or [])
+    if not text.strip():
+        return None
+    kana = len(re.findall('[぀-ヿ]', text))
+    hangul = len(re.findall('[가-힯]', text))
+    cjk = len(re.findall('[一-鿿]', text))
+    latin = len(re.findall('[A-Za-z]', text))
+    total = kana + hangul + cjk + latin
+    if total < 10:
+        return None  # 有效字符太少，判不准
+    if kana / total > 0.05:
+        return 'Japanese'   # 假名出现即强日文信号（汉字会被误算进cjk）
+    if hangul / total > 0.3:
+        return 'Korean'
+    if cjk / total > 0.4:
+        return 'Chinese (Simplified)'
+    return None
+
+
 def sample_text_for_language_detection(file_path: str) -> List[str]:
-    """从文档中随机抽取文本用于语言检测"""
+    """从文档中抽取文本用于语言检测 - 优先取长句，过滤数字/符号噪声"""
     try:
         ext, all_texts = os.path.splitext(file_path)[1].lower(), []
-        limit = 30
+        limit = 60
         if ext in ('.xlsx', '.xls'):
             wb = openpyxl.load_workbook(file_path, read_only=True)
             for ws in wb.worksheets:
@@ -2015,8 +2089,12 @@ def sample_text_for_language_detection(file_path: str) -> List[str]:
                         if len(all_texts) >= limit: break
                 if len(all_texts) >= limit: break
         if not all_texts: return []
-        sample_count = min(random.randint(5, 7), len(all_texts))
-        return random.sample(all_texts, sample_count)
+        # 过滤纯数字/符号/过短片段（它们让检测经常判错），按长度优先取信息量大的句子
+        candidates = [t for t in all_texts if len(re.sub(r'[\d\s\W]', '', t, flags=re.UNICODE)) >= 6]
+        candidates.sort(key=len, reverse=True)
+        if candidates:
+            return candidates[:8]
+        return all_texts[:5]  # 全是短片段时退而求其次
     except Exception as e:
         print(f"Error sampling text: {e}")
         return []
@@ -2501,8 +2579,16 @@ class Api:
     def analyze_language(self, file_path):
         try:
             text_samples = sample_text_for_language_detection(file_path)
-            if not text_samples or not self.stored_api_key: 
+            if not text_samples:
                 return "English"
+            # 先本地字符统计判定（中/日/韩直接确定，不依赖API、不抖动）
+            local_result = detect_source_language_locally(text_samples)
+            if local_result:
+                print(f"🔍 Source language (local): {local_result}")
+                return local_result
+            if not self.stored_api_key:
+                return "English"
+            # 拉丁字母语言交给API细分（英/德/法/西...）
             return DeepSeekTranslator(self.stored_api_key, 0.1).detect_language(text_samples)
         except Exception as e:
             print(f"Language analysis error: {e}")
@@ -2748,6 +2834,8 @@ def get_html_content():
         .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(3, 218, 198, 0.3); }
         .btn-secondary { background: rgba(255,255,255,0.1); color: #e4e4e4; }
         .btn-secondary:hover { background: rgba(255,255,255,0.15); }
+        .btn-back { background: rgba(255,255,255,0.04); color: #8a93a6; border: 1px solid rgba(255,255,255,0.08); font-size: 12px; padding: 10px; }
+        .btn-back:hover { background: rgba(255,255,255,0.09); color: #b8c0d0; }
         .btn:disabled, .btn.validating { opacity: 0.6; cursor: not-allowed; transform: none; }
         .progress-container { margin: 24px 0; }
         .progress-bar { width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
@@ -3677,23 +3765,44 @@ def get_html_content():
                 input.addEventListener('keypress', e => { if (e.key === 'Enter') handleSubmit(); });
             };
             
-            const renderState = (state, message = null) => {
+            // 可以显示「上一步」的设置页；NAV_STATES 是允许被回退到的页面
+            const BACK_STATES = ['CONFIRM_SOURCE','INPUT_SOURCE','CONFIRM_TARGET','INPUT_TARGET','TRANSLATION_MODE','ADVANCED_OPTIONS','TRANSLATION_FORMALITY','EXCEL_EXCLUDE','BATCH_EXCEL_EXCLUDE','PROOFREAD_LANG','PROOFREAD_OPTIONS'];
+            const NAV_STATES = BACK_STATES.concat(['FILE_SELECT','PROOFREAD_SELECT']);
+            let lastNavState = null;
+
+            const renderState = (state, message = null, isBack = false) => {
                 // 停止之前的动画
                 if (state !== 'TRANSLATING' && state !== 'BATCH_TRANSLATING') {
                     stopShredAnimation();
                 }
-                
+
+                // 导航栈维护：前进时把上一个设置页压栈（LOADING等过渡页不入栈）
+                if (!isBack && BACK_STATES.includes(state) && lastNavState && lastNavState !== state) {
+                    stateHistory.push(lastNavState);
+                }
+                if (NAV_STATES.includes(state)) lastNavState = state;
+
                 const app = document.getElementById('app');
                 let content = states[state] || '';
-                
+
                 if (state === 'LOADING' && message) {
                     content = content.replace('Please wait... | 请稍候...', message);
                 } else if (state === 'COMPLETE' && message) {
                     content = content.replace('id="complete-message"></div>', `id="complete-message">${message}</div>`);
                 }
-                
+
+                // 设置页统一加浅色「上一步」按钮，避免选错无法回头
+                if (BACK_STATES.includes(state) && stateHistory.length > 0) {
+                    content += `<button class="btn btn-back" id="backBtn">← Back | 上一步</button>`;
+                }
+
                 content += `<div class="status-info"><div class="status-label">${statusInfo.label}</div><div class="status-value">${statusInfo.value}</div></div>`;
                 app.innerHTML = content;
+
+                document.getElementById('backBtn')?.addEventListener('click', () => {
+                    const prev = stateHistory.pop();
+                    if (prev) renderState(prev, null, true);
+                });
                 
                 if (state === 'CONFIRM_SOURCE') {
                     document.getElementById('detected-lang').textContent = settings.sourceLang;
