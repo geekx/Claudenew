@@ -49,6 +49,7 @@ DEFAULT_CONFIG = {
     "CONTEXT_MAX_CHARS": 1200,            # 脑补检查：传给模型的上下文最大字符数
     "ARBITRATION_MAX_CHARS": 6000,        # 译法仲裁：抽词时送检的源文最大字符数
     "ARBITRATION_MAX_TERMS": 40,          # 译法仲裁：最多仲裁的高频专业词数量
+    "REPAIR_MAX_CALLS": 200,              # 防漏译修复轮：单次逐段补译的最大调用数（超出会显式上报）
 }
 
 # 字号调整配置 - 中文到西文的字号缩放比例
@@ -310,6 +311,23 @@ def is_minor_language_target(source_lang: str, target_lang: str) -> bool:
     这类语对模型直译往往不够准确，适合先经英文中转。
     """
     return _is_chinese_lang(source_lang) and not _is_english_lang(target_lang) and not _is_chinese_lang(target_lang)
+
+
+def text_needs_translation_output(text: str) -> bool:
+    """
+    判断一段文本是否「理应产生不同于原文的译文」。
+    含中日韩文字 → 需要翻译；含自然单词（有小写、或≥4字母的词）→ 需要翻译；
+    纯数字/符号、全大写短码（如 ABC-123、CPU、USB）→ 不需要，
+    其译文等于原文是正常的，不算漏译。用于防漏译审计，避免把型号/编号误报为漏译。
+    """
+    if not text or not text.strip():
+        return False
+    if re.search('[一-鿿぀-ヿ가-힯]', text):
+        return True
+    for w in re.findall('[A-Za-z]+', text):
+        if any(c.islower() for c in w) or len(w) >= 4:
+            return True
+    return False
 
 
 def normalize_tm_key(text: str) -> str:
@@ -731,20 +749,17 @@ class DeepSeekTranslator:
                 if len(translated_segments) == len(texts):
                     return translated_segments
 
-                # Segment count mismatch: try per-element retry for mismatched batches
-                print(f"⚠️ Segment mismatch: expected {len(texts)}, got {len(translated_segments)}. Retrying individually...")
-                if len(texts) <= 5:
-                    # Small batch - retry one-by-one
-                    results = []
-                    for t in texts:
-                        individual = self._translate_single(t, source_lang, target_lang, formality, context_hint)
-                        results.append(individual)
-                    return results
-
-                # Large batch mismatch: pad/truncate as last resort
-                if len(translated_segments) < len(texts):
-                    return translated_segments + texts[len(translated_segments):]
-                return translated_segments[:len(texts)]
+                # 段数不匹配：分隔符被模型吞掉/合并会导致漏译或错位。
+                # 用「二分递归」代替 pad/truncate：对不齐就劈两半各自重译，
+                # 最终落到逐段翻译，数学上保证输出段数==输入段数，绝不漏、不错位。
+                print(f"⚠️ Segment mismatch: expected {len(texts)}, got {len(translated_segments)}. Bisecting...")
+                if len(texts) <= 4:
+                    # 小批次直接逐段翻译（逐段每次必返回1段）
+                    return [self._translate_single(t, source_lang, target_lang, formality, context_hint) for t in texts]
+                mid = len(texts) // 2
+                left = self.translate_batch(texts[:mid], source_lang, target_lang, formality, context_hint)
+                right = self.translate_batch(texts[mid:], source_lang, target_lang, formality, context_hint)
+                return left + right
 
             except Exception as e:
                 if attempt < retries - 1:
@@ -1772,19 +1787,32 @@ def translate_unique_texts(translator, unique_texts, source_lang, target_lang,
         result_map = run_stage(work, source_lang, target_lang, context_hint, need_capitalize)
 
     # 修复轮：批次错位/整批失败会让个别段落原样返回或语言不符，
-    # 这里逐段补译一次（直译源→目标，跳过中转），防止"某段还是原文"漏网
-    failed_keys = [k for k, v in result_map.items()
-                   if (not v) or v.strip() == k.strip()
-                   or not tm_matches_target_language(clean_dnt_tags(v), target_lang)]
+    # 逐段补译一次（直译源→目标，跳过中转），防止"某段还是原文"漏网。
+    # 只针对「理应改变」的段落（型号/编号其译文等于原文是正常的，不算漏译）。
+    def _is_failed(k, v):
+        if not text_needs_translation_output(k):
+            return False
+        cv = clean_dnt_tags(v) if v else ''
+        if not cv or cv.strip() == k.strip():
+            return True
+        return not tm_matches_target_language(cv, target_lang)
+
+    failed_keys = [k for k, v in result_map.items() if _is_failed(k, result_map.get(k))]
     if failed_keys:
+        cap = DEFAULT_CONFIG.get('REPAIR_MAX_CALLS', 200)
+        to_fix = failed_keys[:cap]
         progress_callback.info(f"Repairing {len(failed_keys)} failed/mismatched segments | 补译{len(failed_keys)}个失败或语言不符的段落")
-        for k in failed_keys[:50]:  # 上限保护，避免异常情况下token失控
+        for k in to_fix:
             try:
                 r = translator._translate_single(k, source_lang, target_lang, formality, context_hint)
                 if r and r.strip() != k.strip() and tm_matches_target_language(clean_dnt_tags(r), target_lang):
                     result_map[k] = capitalize_first_letter(r) if need_capitalize else r
             except Exception as e:
                 print(f"Repair translate error: {e}")
+        # 复检残留：无法修复的（含超出上限未尝试的）显式上报，绝不静默漏译
+        still = [k for k in failed_keys if _is_failed(k, result_map.get(k))]
+        if still:
+            progress_callback.error(f"⚠ {len(still)} segments could not be translated (kept as source) | {len(still)}段仍无法翻译，已保留原文（可重跑或检查网络/API）")
 
     return result_map
 
@@ -1890,6 +1918,7 @@ def process_ppt_elements(elements: List[PPTElementInfo], term_map, term_re, tran
 
     updated_count = 0
     font_adjusted_count = 0
+    untranslated_count = 0  # 完整性审计：应译但仍为原文的段落
 
     for elem_info in elements:
         if is_text_already_target_language(elem_info.original_text, target_lang):
@@ -1920,6 +1949,8 @@ def process_ppt_elements(elements: List[PPTElementInfo], term_map, term_re, tran
                 except Exception as e:
                     print(f"Error updating element: {e}")
                     progress_callback.error(f"Error updating text: {str(e)}")
+            elif text_needs_translation_output(elem_info.original_text):
+                untranslated_count += 1  # 该译却没译，记为漏译
 
     summary = f"Updated {updated_count} elements"
     if tm_hit_count > 0:
@@ -1931,6 +1962,8 @@ def process_ppt_elements(elements: List[PPTElementInfo], term_map, term_re, tran
     if font_adjusted_count > 0:
         summary += f", adjusted font for {font_adjusted_count}"
     progress_callback.progress(summary)
+    if untranslated_count > 0:
+        progress_callback.error(f"⚠ {untranslated_count} segments left untranslated | {untranslated_count}段未译出，已保留原文（建议重跑该文件）")
 
 
 def process_text_elements(elements, term_map, term_re, translator, source_lang, target_lang,
@@ -2016,6 +2049,7 @@ def process_text_elements(elements, term_map, term_re, translator, source_lang, 
     progress_callback.status("Updating document... | 更新文档...")
 
     updated_count = 0
+    untranslated_count = 0  # 完整性审计：应译但仍为原文的段落
     for element, original_text in elements:
         if is_text_already_target_language(original_text, target_lang):
             continue
@@ -2041,6 +2075,8 @@ def process_text_elements(elements, term_map, term_re, translator, source_lang, 
                 except Exception as e:
                     print(f"Error updating element: {e}")
                     progress_callback.error(f"Error updating text: {str(e)}")
+            elif text_needs_translation_output(original_text):
+                untranslated_count += 1  # 该译却没译，记为漏译
 
     summary = f"Successfully updated {updated_count} elements"
     if tm_hit_count > 0:
@@ -2050,6 +2086,8 @@ def process_text_elements(elements, term_map, term_re, translator, source_lang, 
     if is_bilingual:
         summary += " (bilingual)"
     progress_callback.progress(summary)
+    if untranslated_count > 0:
+        progress_callback.error(f"⚠ {untranslated_count} segments left untranslated | {untranslated_count}段未译出，已保留原文（建议重跑该文件）")
 
 
 def _predict_target_language_helper() -> str:
