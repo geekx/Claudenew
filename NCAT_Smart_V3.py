@@ -2230,6 +2230,59 @@ def check_file_accessibility(file_path: str) -> Tuple[bool, str]:
     except Exception as e: return False, f"File access error: {str(e)}"
 
 
+def extract_docx_textbox_paragraphs(doc, elements) -> int:
+    """
+    提取 Word 文本框内的段落。python-docx 的 doc.paragraphs 不含文本框，
+    这些文字常被整块漏译。覆盖 DrawingML(wps) 与 VML 两类文本框；
+    跳过 mc:Fallback（与 mc:Choice 内容重复）。全程 try/except，失败则跳过不影响主流程。
+    返回新增的段落数。
+    """
+    try:
+        from docx.oxml.ns import qn
+        from docx.text.paragraph import Paragraph
+        import types as _types
+        # 提供具备 .part 的父对象，使 Paragraph 的 style/alignment 访问可用
+        parent_shim = _types.SimpleNamespace(part=doc.part)
+
+        roots = [doc.element.body]
+        for section in doc.sections:
+            for hf in (section.header, section.footer):
+                try:
+                    roots.append(hf._element)
+                except Exception:
+                    pass
+
+        # mc 前缀未在 python-docx 注册，qn('mc:Fallback') 会抛错，故用完整命名空间URI
+        fallback_tag = '{http://schemas.openxmlformats.org/markup-compatibility/2006}Fallback'
+        txbx_tag = qn('w:txbxContent')
+        p_tag = qn('w:p')
+        seen = set()
+        added = 0
+        for root in roots:
+            for txbx in root.iter(txbx_tag):
+                # 跳过 mc:Fallback 内的文本框，避免与 Choice 版本重复翻译
+                anc, in_fallback = txbx.getparent(), False
+                while anc is not None:
+                    if anc.tag == fallback_tag:
+                        in_fallback = True
+                        break
+                    anc = anc.getparent()
+                if in_fallback:
+                    continue
+                for p in txbx.iter(p_tag):
+                    if id(p) in seen:
+                        continue
+                    seen.add(id(p))
+                    para = Paragraph(p, parent_shim)
+                    if para.text and para.text.strip():
+                        elements.append((para, para.text))
+                        added += 1
+        return added
+    except Exception as e:
+        print(f"Textbox extraction skipped: {e}")
+        return 0
+
+
 def run_translation_process(settings, progress_callback, is_batch=False, file_index=0, total_files=0):
     """主翻译流程"""
     global GLOSSARY_ENABLED
@@ -2329,6 +2382,11 @@ def run_translation_process(settings, progress_callback, is_batch=False, file_in
             for section_idx, section in enumerate(doc.sections):
                 get_elements_from_container(section.header, f"header_{section_idx}")
                 get_elements_from_container(section.footer, f"footer_{section_idx}")
+
+            # 文本框内文字（python-docx 默认忽略，防整块漏译）
+            tb_added = extract_docx_textbox_paragraphs(doc, elements)
+            if tb_added:
+                progress_callback.info(f"Text boxes: +{tb_added} paragraphs | 文本框: 额外提取{tb_added}段")
 
             doc_obj = doc
 
