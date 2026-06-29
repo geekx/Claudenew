@@ -101,9 +101,41 @@ def test_ppt_end_to_end_no_drop():
     print('test_ppt_end_to_end_no_drop: PASS')
 
 
+def test_master_placeholder_filtering():
+    """母版/版式的模板占位样板字应被过滤，真实自定义内容应保留。"""
+    ncat = load_ncat(use_real_docx=False, use_real_pptx=True)
+    from pptx.util import Inches
+    from pptx.oxml import parse_xml
+
+    prs = Presentation()
+    # 母版注入一个真实非占位符文本框（带几何，is_placeholder=False）
+    sp = ('<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
+          'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+          '<p:nvSpPr><p:cNvPr id="99" name="custom"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>'
+          '<p:spPr><a:xfrm><a:off x="100" y="100"/><a:ext cx="100" cy="100"/></a:xfrm>'
+          '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>'
+          '<p:txBody><a:bodyPr/><a:p><a:r><a:t>公司机密页脚</a:t></a:r></a:p></p:txBody></p:sp>')
+    prs.slide_master.shapes._spTree.append(parse_xml(sp))
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    tb = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
+    tb.text_frame.text = '正文标题内容'
+    path = os.path.join(tempfile.mkdtemp(), 'm.pptx')
+    prs.save(path)
+
+    els = []
+    ncat.extract_ppt_elements_enhanced(Presentation(path), els)
+    texts = sorted({e.original_text for e in els})
+    boiler = [t for t in texts if 'Master' in t or 'Click to edit' in t or 'level' in t.lower()]
+    assert not boiler, f'母版样板字未被过滤: {boiler}'
+    assert '正文标题内容' in texts
+    assert '公司机密页脚' in texts          # 母版真实自定义内容保留
+    print('test_master_placeholder_filtering: PASS')
+
+
 if __name__ == '__main__':
     if not HAVE_PPTX:
         print('⚠ python-pptx 未安装，跳过 PPT 集成测试')
         sys.exit(0)
     test_ppt_end_to_end_no_drop()
+    test_master_placeholder_filtering()
     print('\n✅ PPT 集成测试通过')

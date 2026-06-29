@@ -1593,10 +1593,17 @@ def extract_ppt_elements_enhanced(prs, elements: List[PPTElementInfo]):
     增强版PPT元素提取 - 支持Group形状和Notes讲稿
     """
     
-    def extract_from_shapes(shapes, context=""):
-        """从形状集合中提取文本（包括Group）"""
+    def extract_from_shapes(shapes, context="", skip_placeholders=False):
+        """从形状集合中提取文本（包括Group）。
+        skip_placeholders=True 用于母版/版式：跳过占位符（其内容是
+        “Click to edit…”、页码/日期占位等模板样板字），只保留真实自定义内容，
+        避免把模板提示语送去翻译、白白消耗 token。"""
         for shape in shapes:
             try:
+                # 母版/版式上的占位符是模板样板字，跳过
+                if skip_placeholders and getattr(shape, 'is_placeholder', False):
+                    continue
+
                 # 处理Group形状 - 递归提取
                 if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
                     extract_from_group_shape(shape, elements, f"{context}_group")
@@ -1674,20 +1681,20 @@ def extract_ppt_elements_enhanced(prs, elements: List[PPTElementInfo]):
             except Exception as e:
                 continue
     
-    # 2. 从幻灯片母版提取
+    # 2. 从幻灯片母版提取（跳过模板占位样板字，只取真实自定义内容）
     try:
         if hasattr(prs, 'slide_master') and prs.slide_master:
-            extract_from_shapes(prs.slide_master.shapes, "slide_master")
+            extract_from_shapes(prs.slide_master.shapes, "slide_master", skip_placeholders=True)
     except Exception:
         pass
-    
-    # 3. 从布局母版提取
+
+    # 3. 从布局母版提取（同上，跳过占位样板字）
     try:
         if hasattr(prs, 'slide_layouts'):
             for layout_idx, layout in enumerate(prs.slide_layouts):
                 try:
                     if layout and hasattr(layout, 'shapes'):
-                        extract_from_shapes(layout.shapes, f"layout_{layout_idx}")
+                        extract_from_shapes(layout.shapes, f"layout_{layout_idx}", skip_placeholders=True)
                 except Exception:
                     continue
     except Exception:
