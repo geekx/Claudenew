@@ -23,7 +23,7 @@ def _stub(name, **attrs):
     return m
 
 
-def install_stubs(use_real_docx=False):
+def install_stubs(use_real_docx=False, use_real_pptx=False):
     _stub('pytz', timezone=lambda *a, **k: types.SimpleNamespace(zone='Asia/Shanghai'))
     _stub('requests', Session=object,
           exceptions=types.SimpleNamespace(Timeout=Exception, ConnectionError=Exception),
@@ -40,10 +40,11 @@ def install_stubs(use_real_docx=False):
           utils=types.SimpleNamespace(column_index_from_string=lambda s: 1))
     _stub('webview', FileDialog=types.SimpleNamespace(OPEN=1),
           create_window=lambda *a, **k: None, start=lambda *a, **k: None)
-    _stub('pptx', Presentation=object)
-    _stub('pptx.util', Pt=lambda x: x, Emu=lambda x: x)
-    _stub('pptx.enum'); _stub('pptx.enum.shapes', MSO_SHAPE_TYPE=types.SimpleNamespace(GROUP=6))
-    _stub('pptx.dml'); _stub('pptx.dml.color', RGBColor=lambda *a: None)
+    if not use_real_pptx:
+        _stub('pptx', Presentation=object)
+        _stub('pptx.util', Pt=lambda x: x, Emu=lambda x: x)
+        _stub('pptx.enum'); _stub('pptx.enum.shapes', MSO_SHAPE_TYPE=types.SimpleNamespace(GROUP=6))
+        _stub('pptx.dml'); _stub('pptx.dml.color', RGBColor=lambda *a: None)
     if not use_real_docx:
         _stub('docx', Document=object,
               text=types.SimpleNamespace(paragraph=types.SimpleNamespace(Paragraph=object)),
@@ -51,8 +52,8 @@ def install_stubs(use_real_docx=False):
                   WD_COLOR_INDEX=types.SimpleNamespace(YELLOW=1))))
 
 
-def load_ncat(use_real_docx=False):
-    install_stubs(use_real_docx=use_real_docx)
+def load_ncat(use_real_docx=False, use_real_pptx=False):
+    install_stubs(use_real_docx=use_real_docx, use_real_pptx=use_real_pptx)
     spec = importlib.util.spec_from_file_location('ncat', NCAT_PATH)
     ncat = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(ncat)

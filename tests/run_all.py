@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FILES = ['test_logic.py', 'test_word_integration.py']
+FILES = ['test_logic.py', 'test_word_integration.py', 'test_ppt_integration.py']
 
 failed = 0
 for f in FILES:

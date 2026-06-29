@@ -52,11 +52,15 @@ python tests/run_all.py
 - `tests/test_logic.py`：纯逻辑（TM 模糊命中/防污染、语言判定、英文中转、机密切碎、
   脑补、译法仲裁、二分递归零漏译），依赖打桩，无需 Office 库。
 - `tests/test_word_integration.py`：真实 python-docx 端到端，验证正文+表格+文本框零漏译。
+- `tests/test_ppt_integration.py`：真实 python-pptx 端到端，验证文本框+表格+组合形状+备注零漏译。
 
 ## 路线图
 
 - [x] **P0 零漏译**：二分递归对齐 + 修复轮 + 完整性审计 + TM 防污染（含测试）
 - [x] **P1a Word 文本框**：DrawingML/VML 文本框抽取 + mc:Fallback 去重（端到端测试通过）
+- [x] **P1a PPT 集成测试**：文本框/表格/组合/备注端到端零漏译验证
+- [ ] **P1b 过度翻译**：PPT 母版/版式占位样板字（“Click to edit…”、页码/日期占位）
+      目前会被一并送译，浪费 token；应跳过纯模板占位、只译真实内容
 - [ ] **P1b 更多覆盖**：Word 脚注/尾注、PPT 图表/SmartArt 内文字
 - [ ] **P2 版式精度**：保留多 run 段落的内联格式（粗体/斜体片段）、超链接关系
 - [ ] **P3 工程化**：TM/术语表导入导出、断点续译
