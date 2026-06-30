@@ -2167,7 +2167,7 @@ def sample_text_for_language_detection(file_path: str) -> List[str]:
             for ws in wb.worksheets:
                 for row in ws.iter_rows():
                     for cell in row:
-                        if cell.value and isinstance(cell.value, str) and cell.value.strip(): 
+                        if cell.value and isinstance(cell.value, str) and cell.value.strip() and not is_formula_cell(cell):
                             all_texts.append(cell.value.strip())
                         if len(all_texts) >= limit: break
                     if len(all_texts) >= limit: break
@@ -2222,6 +2222,20 @@ def should_exclude_excel_cell(cell, exclude_settings: Dict) -> bool:
     """判断Excel单元格是否应该被排除翻译"""
     if not exclude_settings: return False
     return cell.coordinate in exclude_settings.get('cells', set()) or cell.row in exclude_settings.get('rows', set()) or cell.column in exclude_settings.get('cols', set())
+
+
+def is_formula_cell(cell) -> bool:
+    """
+    判断是否为公式单元格。公式是代码（如 =SUM(B1:B3)、=CONCATENATE(A1,"附注")），
+    绝不能送翻译，否则会破坏表格、改坏函数名或公式里的中文参数。
+    """
+    try:
+        if getattr(cell, 'data_type', None) == 'f':
+            return True
+        v = cell.value
+        return isinstance(v, str) and v.startswith('=') and len(v) > 1
+    except Exception:
+        return False
 
 
 def check_file_accessibility(file_path: str) -> Tuple[bool, str]:
@@ -2354,7 +2368,9 @@ def run_translation_process(settings, progress_callback, is_batch=False, file_in
             for ws in wb.worksheets:
                 for row in ws.iter_rows():
                     for cell in row:
-                        if (cell.value and isinstance(cell.value, str) and cell.value.strip() and not should_exclude_excel_cell(cell, exclude_settings)):
+                        if (cell.value and isinstance(cell.value, str) and cell.value.strip()
+                                and not is_formula_cell(cell)
+                                and not should_exclude_excel_cell(cell, exclude_settings)):
                             elements.append((cell, cell.value))
             doc_obj = wb
             
@@ -2511,7 +2527,8 @@ def run_proofreading_process(settings, progress_callback):
             for ws in wb.worksheets:
                 for row in ws.iter_rows():
                     for cell in row:
-                        if cell.value and isinstance(cell.value, str) and cell.value.strip():
+                        if (cell.value and isinstance(cell.value, str) and cell.value.strip()
+                                and not is_formula_cell(cell)):
                             elements.append((cell, cell.value, 'excel'))
             doc_obj = wb
             

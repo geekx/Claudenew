@@ -53,6 +53,7 @@ python tests/run_all.py
   脑补、译法仲裁、二分递归零漏译），依赖打桩，无需 Office 库。
 - `tests/test_word_integration.py`：真实 python-docx 端到端，验证正文+表格+文本框零漏译。
 - `tests/test_ppt_integration.py`：真实 python-pptx 端到端，验证文本框+表格+组合形状+备注零漏译。
+- `tests/test_excel_integration.py`：真实 openpyxl 端到端，验证文本单元格被译、公式单元格不被破坏。
 
 ## 路线图
 
@@ -62,6 +63,8 @@ python tests/run_all.py
 - [x] **P1b 过度翻译修复**：PPT 母版/版式占位样板字（“Click to edit…”、页码/日期占位）
       不再送译，只译真实自定义内容（端到端测试覆盖）
 - [x] **TM 端到端复用验证**：同句二次翻译零 API 调用（精确+模糊命中，集成测试覆盖）
+- [x] **Excel 公式保护**：公式单元格（含内嵌中文的 `=CONCATENATE(...)`）不再送译，
+      避免破坏表格函数（端到端测试覆盖）
 - [ ] **P1b Word 脚注/尾注**：待解决——python-docx 将 footnotes.xml 作为 blob 部件加载，
       改动解析副本不会在保存时写回；需先确认写回持久化方案再实现（否则只译不写=仍漏译）
 - [ ] **P1b PPT 图表/SmartArt 内文字**
