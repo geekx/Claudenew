@@ -137,10 +137,52 @@ def test_word_end_to_end_no_drop():
     print('test_word_end_to_end_no_drop: PASS')
 
 
+def test_tm_end_to_end_reuse():
+    """翻译记忆端到端复用：同一句二次翻译应零 API 调用（精确+模糊命中）。"""
+    ncat = load_ncat(use_real_docx=True)
+    ncat._translation_memory = ncat.TranslationMemory(os.path.join(tempfile.mkdtemp(), 'tm.db'))
+
+    class CountingJA:
+        def __init__(self): self.translated = []
+        def translate_batch(self, texts, s, t, formality='auto', context_hint=''):
+            self.translated += list(texts)
+            return ['やく〔' + x + '〕です' for x in texts]
+        def _translate_single(self, text, s, t, formality='auto', context_hint=''):
+            self.translated.append(text)
+            return 'やく〔' + text + '〕です'
+
+    class CB:
+        def __init__(self): self.errors = []; self.infos = []
+        def progress(self, m): pass
+        def status(self, m): pass
+        def info(self, m): self.infos.append(m)
+        def error(self, m): self.errors.append(m)
+
+    def run(text, translator):
+        d = Document(); d.add_paragraph(text)
+        els = [(p, p.text) for p in d.paragraphs if p.text.strip()]
+        cb = CB()
+        ncat.process_text_elements(els, {}, None, translator, 'Chinese', 'Japanese', cb,
+                                   'replace', 'auto',
+                                   {'confidential': False, 'pivot': False, 'contextInference': False, 'fuzzyTM': True})
+        return d.paragraphs[0].text, cb
+
+    sent = '网络安全是企业的重中之重'
+    ft1 = CountingJA(); out1, _ = run(sent, ft1)
+    assert out1.startswith('やく〔') and len(ft1.translated) == 1
+    ft2 = CountingJA(); out2, cb2 = run(sent, ft2)
+    assert out2 == out1 and len(ft2.translated) == 0          # 精确命中，零API
+    assert any('TM' in i for i in cb2.infos)
+    ft3 = CountingJA(); _, _ = run(sent + '。', ft3)
+    assert len(ft3.translated) == 0                            # 模糊命中，零API
+    print('test_tm_end_to_end_reuse: PASS')
+
+
 if __name__ == '__main__':
     if not HAVE_DOCX:
         print('⚠ python-docx 未安装，跳过 Word 集成测试')
         sys.exit(0)
     test_textbox_extraction_variants()
     test_word_end_to_end_no_drop()
+    test_tm_end_to_end_reuse()
     print('\n✅ Word 集成测试全部通过')
