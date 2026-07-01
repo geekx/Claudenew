@@ -1,0 +1,20 @@
+op,name,rotation,clamp,temperature,laser_mark
+OP010,Paper insertion,0,00,25,0
+OP020,Pin insertion,0,11,25,0
+OP030,Trimming,1,10,25,1
+OP040,Twisting,0.5,10,25,0
+OP050,Widening,-0.5,11,25,1
+OP060,Forming cutting,0,00,25,0
+OP070,Straightening,0,00,25,0
+OP080,Pin forming,1,10,25,1
+OP090,Laser Welding,0,11,45,0
+OP100,Tig,0,11,60,0
+OP110,Powder coating,0,00,25,1
+OP120,preheating,0,00,55,0
+OP130,Gel,0.5,10,50,0
+OP140,Cure,1,10,120,1
+OP150,Cooling,0,00,25,0
+OP160,Tricking,-0.5,11,45,1
+OP170,Press,0,00,25,0
+OP180,PDIV,0,11,25,0
+OP190,EOL,0,00,25,0
