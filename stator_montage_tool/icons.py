@@ -8,9 +8,9 @@ import matplotlib.path as mpath
 import matplotlib.transforms as mtransforms
 from matplotlib.patches import FancyArrowPatch, Circle, Rectangle, FancyBboxPatch
 
-GOLD = "#F5A623"
+GOLD = "#FFC000"
 GOLD_DARK = "#C97F0E"
-GREY = "#9E9E9E"
+GREY = "#A6A6A6"
 GREY_DARK = "#6E6E6E"
 BLUE = "#2E6DB4"
 RED = "#E8352C"
@@ -30,48 +30,60 @@ def _cell(ax, bg=BLACK):
 
 
 # ---------------------------------------------------------------------------
-# Stator glyph: gold cap + grey laminated stack + gold pin teeth
+# Stator glyph: gold cap + grey laminated stack + gold pin teeth.
+# Geometry ported 1:1 from the reference stator.svg (original canvas 178x145,
+# cap x=12..165 y=0..22, 4 grey bars, 9 gold pin teeth y=112..139.332).
 # ---------------------------------------------------------------------------
 
-def _stator_glyph_patches(cx=0.0, cy=0.0, w=0.9, h=1.2):
+_REAL_CX, _REAL_CY = 89.0, 72.5
+_REAL_CAP = dict(x=12, y=0, w=153, h=22, rx=3.7)
+_REAL_BARS = [
+    dict(x=0, y=28, w=178, h=20),
+    dict(x=0, y=52, w=178, h=15),
+    dict(x=0, y=72, w=178, h=15),
+    dict(x=0, y=97, w=178, h=15),
+]
+_REAL_TEETH_X = [27, 41, 56, 72, 87, 105, 123, 137, 150]
+_REAL_TEETH_Y0, _REAL_TEETH_Y1, _REAL_TEETH_W = 112, 139.332, 10.3125
+
+
+def _rect_world(real_x, real_y, real_w, real_h, scale, cx, cy):
+    """Convert a real-SVG rect (y-down, anchored top-left) into a matplotlib
+    Rectangle spec (y-up, anchored bottom-left) around glyph center (cx, cy)."""
+    x0 = (real_x - _REAL_CX) * scale + cx
+    y0 = (_REAL_CY - (real_y + real_h)) * scale + cy
+    return x0, y0, real_w * scale, real_h * scale
+
+
+def _stator_glyph_patches(cx=0.0, cy=0.0, scale=0.0048):
     """Return list of (patch_kind, kwargs) describing the stator glyph
     centered at (cx, cy), before rotation."""
     patches = []
-    cap_w, cap_h = w * 0.62, h * 0.10
-    cap_y = cy + h * 0.42
+    x0, y0, w, h = _rect_world(_REAL_CAP["x"], _REAL_CAP["y"], _REAL_CAP["w"],
+                                 _REAL_CAP["h"], scale, cx, cy)
     patches.append(("fancybbox", dict(
-        xy=(cx - cap_w / 2, cap_y - cap_h / 2), width=cap_w, height=cap_h,
-        boxstyle="round,pad=0,rounding_size=" + str(cap_h * 0.5),
+        xy=(x0, y0), width=w, height=h,
+        boxstyle="round,pad=0,rounding_size=" + str(_REAL_CAP["rx"] * scale),
         facecolor=GOLD, edgecolor="none")))
 
-    n_bars = 4
-    bar_h = h * 0.09
-    gap = h * 0.03
-    top_y = cap_y - cap_h / 2 - gap
-    for i in range(n_bars):
-        bw = w * (1.0 - 0.06 * i)
-        by = top_y - i * (bar_h + gap) - bar_h / 2
-        patches.append(("rect", dict(
-            xy=(cx - bw / 2, by - bar_h / 2), width=bw, height=bar_h,
-            facecolor=GREY, edgecolor="none")))
-    stack_bottom = top_y - (n_bars - 1) * (bar_h + gap) - bar_h - gap / 2
+    for bar in _REAL_BARS:
+        x0, y0, w, h = _rect_world(bar["x"], bar["y"], bar["w"], bar["h"], scale, cx, cy)
+        patches.append(("rect", dict(xy=(x0, y0), width=w, height=h,
+                                       facecolor=GREY, edgecolor="none")))
 
-    n_teeth = 9
-    tooth_h = h * 0.22
-    tooth_w = w * 0.7 / n_teeth * 0.55
-    span = w * 0.72
-    xs = np.linspace(cx - span / 2, cx + span / 2, n_teeth)
-    for x in xs:
-        patches.append(("rect", dict(
-            xy=(x - tooth_w / 2, stack_bottom - tooth_h), width=tooth_w, height=tooth_h,
-            facecolor=GOLD, edgecolor="none")))
+    tooth_h = _REAL_TEETH_Y1 - _REAL_TEETH_Y0
+    for tx in _REAL_TEETH_X:
+        x0, y0, w, h = _rect_world(tx - _REAL_TEETH_W / 2, _REAL_TEETH_Y0,
+                                     _REAL_TEETH_W, tooth_h, scale, cx, cy)
+        patches.append(("rect", dict(xy=(x0, y0), width=w, height=h,
+                                       facecolor=GOLD, edgecolor="none")))
     return patches
 
 
-def draw_stator_glyph(ax, cx=0.0, cy=0.0, w=0.9, h=1.2, angle=0, alpha=1.0):
+def draw_stator_glyph(ax, cx=0.0, cy=0.0, scale=0.0048, angle=0, alpha=1.0):
     """Draw the stator glyph rotated by `angle` degrees about (cx, cy)."""
     t = mtransforms.Affine2D().rotate_deg_around(cx, cy, angle) + ax.transData
-    for kind, kw in _stator_glyph_patches(cx, cy, w, h):
+    for kind, kw in _stator_glyph_patches(cx, cy, scale):
         kw = dict(kw)
         kw["alpha"] = alpha
         if kind == "rect":
@@ -99,7 +111,7 @@ def _rotation_arrow(ax, cx, cy, r, theta1, theta2, color=BLUE):
 def draw_rotation_icon(ax, code, angle_map):
     _cell(ax)
     angle = angle_map[code]
-    draw_stator_glyph(ax, 0, -0.05, w=0.85, h=1.05, angle=angle)
+    draw_stator_glyph(ax, 0, -0.05, angle=angle)
     if code != 0:
         _rotation_arrow(ax, 0, -0.05, 0.95, 20, 250, color=BLUE)
     ax.text(0, -1.18, f"R = {code}  ({angle}°)", color=WHITE, ha="center", va="top",

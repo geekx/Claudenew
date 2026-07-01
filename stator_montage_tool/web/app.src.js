@@ -87,7 +87,7 @@
     var cell = newCell();
     var angle = ROTATION_ANGLES[String(code)];
     var svg = cloneSvg("tpl-stator");
-    svg.querySelector(".stator").setAttribute("transform", "rotate(" + angle + " 50 50)");
+    svg.querySelector(".stator").setAttribute("transform", "rotate(" + angle + " 89 72.5)");
     cell.appendChild(svg);
     if (angle !== 0) {
       cell.appendChild(cloneSvg("tpl-rotate-arrow"));
