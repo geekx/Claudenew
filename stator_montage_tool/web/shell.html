@@ -22,6 +22,9 @@
   .chevron-cell .label { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; pointer-events:none; }
   .chevron-cell .label .op { font-weight:bold; font-size:14px; }
   .chevron-cell .label .name { font-size:11px; line-height:1.25; padding:0 10px; }
+  .cell.real-icon-cell { height:150px; background:#fafafa; border:1px solid #e2e2e2; }
+  .cell.real-icon-cell svg { padding:6px; }
+  .cell.real-icon-cell.empty { display:flex; align-items:center; justify-content:center; color:#bbb; font-size:11px; }
 </style>
 </head>
 <body>
@@ -139,6 +142,9 @@
       <polygon class="chevron-poly" points="2,15 70,15 96,50 70,85 2,85 18,50" fill="var(--grey)"/>
     </svg>
   </template>
+
+  <!-- 真实工艺图标资源（原图库素材，逐一原样内嵌，build.py 只补 viewBox） -->
+<!--__REAL_ICON_TEMPLATES__-->
 
 </div>
 <!-- ============ /静态 SVG 图标资源 ============ -->

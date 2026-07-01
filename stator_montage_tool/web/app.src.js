@@ -3,9 +3,28 @@
 
   var ROTATION_ANGLES = { "0": 0, "0.5": 45, "1": 180, "-0.5": 135 };
   var TEMP_THRESHOLD = 40;
-  var ROW_LABELS = ["夹持状态", "工序", "产品旋转状态", "温度状态", "激光标记方向"];
+  var ROW_LABELS = ["真实工艺图标", "夹持状态", "工序", "产品旋转状态", "温度状态", "激光标记方向"];
   var CHEVRON_START = [242, 147, 60];
   var CHEVRON_END = [158, 158, 158];
+
+  var REAL_ICON_MAP = {
+    "Cooling": "icon-cooling",
+    "Cure": "icon-cure",
+    "EOL": "icon-eol",
+    "Gel": "icon-gel",
+    "Laser Welding": "icon-laser_welding",
+    "Paper insertion": "icon-paper_insertion",
+    "PDIV": "icon-pdiv",
+    "Pin forming": "icon-pin_forming",
+    "Pin insertion": "icon-pin_insertion",
+    "Powder coating": "icon-powder_coating",
+    "preheating": "icon-preheating",
+    "Press": "icon-press",
+    "Tricking": "icon-tricking",
+    "Trimming": "icon-trimming",
+    "Twisting": "icon-twisting",
+    "Tig": "icon-tig"
+  };
 
   var PROCESSES = [
     { op: "OP010", name: "Paper insertion", rotation: 0, clamp: "00", temperature: 25, laser_mark: 0 },
@@ -130,6 +149,18 @@
     return cell;
   }
 
+  function buildRealIconCell(step) {
+    var tplId = REAL_ICON_MAP[step.name];
+    if (!tplId || !document.getElementById(tplId)) {
+      var empty = newCell("real-icon-cell empty");
+      empty.textContent = "(暂无原图)";
+      return empty;
+    }
+    var cell = newCell("real-icon-cell");
+    cell.appendChild(cloneSvg(tplId));
+    return cell;
+  }
+
   function buildRowLabel(text) {
     var div = document.createElement("div");
     div.className = "row-label";
@@ -143,6 +174,7 @@
     sheet.style.gridTemplateColumns = "140px repeat(" + n + ", 120px)";
 
     var rowBuilders = [
+      function (step) { return buildRealIconCell(step); },
       function (step) { return buildClampCell(step.clamp); },
       function (step, i) { return buildChevronCell(step, lerpColor(CHEVRON_START, CHEVRON_END, i / Math.max(1, n - 1))); },
       function (step) { return buildRotationCell(step.rotation); },
