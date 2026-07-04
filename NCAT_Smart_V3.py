@@ -221,6 +221,62 @@ class TranslationMemory:
             with self._get_conn() as conn:
                 conn.execute('DELETE FROM tm')
 
+    def export_csv(self, path: str) -> int:
+        """
+        导出全部翻译记忆到 CSV（source,target,source_lang,target_lang,use_count）。
+        用于备份 / 跨机器或团队共享记忆库。返回导出条数。
+        """
+        import csv
+        with self._lock:
+            with self._get_conn() as conn:
+                rows = conn.execute(
+                    'SELECT source_text, target_text, source_lang, target_lang, use_count '
+                    'FROM tm ORDER BY updated_at DESC'
+                ).fetchall()
+        with open(path, 'w', encoding='utf-8-sig', newline='') as f:
+            w = csv.writer(f)
+            w.writerow(['source', 'target', 'source_lang', 'target_lang', 'use_count'])
+            for r in rows:
+                w.writerow(r)
+        return len(rows)
+
+    def import_csv(self, path: str, validate: bool = True) -> Tuple[int, int]:
+        """
+        从 CSV 导入翻译记忆。列名兼容 source/target/source_lang/target_lang
+        （缺语言列时可退回文件级默认，见调用方）。validate=True 时用目标语言
+        符合性校验过滤污染行。返回 (导入成功数, 跳过数)。
+        """
+        import csv
+        imported, skipped = 0, 0
+        with open(path, 'r', encoding='utf-8-sig', newline='') as f:
+            reader = csv.DictReader(f)
+            norm = {}
+            for name in (reader.fieldnames or []):
+                norm[name.strip().lower()] = name
+            src_c = norm.get('source') or norm.get('src') or norm.get('原文')
+            tgt_c = norm.get('target') or norm.get('tgt') or norm.get('译文')
+            sl_c = norm.get('source_lang') or norm.get('sourcelang') or norm.get('源语言')
+            tl_c = norm.get('target_lang') or norm.get('targetlang') or norm.get('目标语言')
+            if not src_c or not tgt_c or not sl_c or not tl_c:
+                raise ValueError('CSV missing required columns: source,target,source_lang,target_lang')
+            batches: Dict[Tuple[str, str], List[Tuple[str, str]]] = {}
+            for row in reader:
+                s = (row.get(src_c) or '').strip()
+                t = (row.get(tgt_c) or '').strip()
+                sl = (row.get(sl_c) or '').strip().lower()
+                tl = (row.get(tl_c) or '').strip().lower()
+                if not s or not t or not sl or not tl or s == t:
+                    skipped += 1
+                    continue
+                if validate and not tm_matches_target_language(t, tl):
+                    skipped += 1
+                    continue
+                batches.setdefault((sl, tl), []).append((s, t))
+                imported += 1
+        for (sl, tl), pairs in batches.items():
+            self.store_batch(pairs, sl, tl)
+        return imported, skipped
+
 
 def get_tm() -> Optional[TranslationMemory]:
     """获取全局TM实例（懒加载）"""
@@ -2880,6 +2936,44 @@ class Api:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
+    def export_tm(self):
+        """导出翻译记忆库到用户选择的 CSV 文件"""
+        try:
+            tm = get_tm()
+            if not tm:
+                return {'success': False, 'error': 'TM not available'}
+            default_name = f"tm_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            save_path = None
+            if WINDOW:
+                with self.file_dialog_lock:
+                    res = WINDOW.create_file_dialog(webview.FileDialog.SAVE, save_filename=default_name)
+                save_path = res if isinstance(res, str) else (res[0] if res else None)
+            if not save_path:
+                return {'success': False, 'error': 'cancelled'}
+            count = tm.export_csv(save_path)
+            return {'success': True, 'count': count, 'path': os.path.basename(save_path)}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def import_tm(self):
+        """从用户选择的 CSV 导入翻译记忆库（带目标语言符合性校验）"""
+        try:
+            tm = get_tm()
+            if not tm:
+                return {'success': False, 'error': 'TM not available'}
+            file_path = None
+            if WINDOW:
+                with self.file_dialog_lock:
+                    res = WINDOW.create_file_dialog(webview.FileDialog.OPEN, allow_multiple=False,
+                                                    file_types=('CSV files (*.csv)', 'All files (*.*)'))
+                file_path = res[0] if res else None
+            if not file_path:
+                return {'success': False, 'error': 'cancelled'}
+            imported, skipped = tm.import_csv(file_path, validate=True)
+            return {'success': True, 'imported': imported, 'skipped': skipped}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
     def start_translation(self, settings):
         settings['apiKey'] = self.stored_api_key
         progress_callback = ProgressCallback(WINDOW)
@@ -3511,6 +3605,17 @@ def get_html_content():
         }
         .tm-icon { font-size: 16px; }
         #tm-stats { flex: 1; }
+        .tm-io-btn {
+            background: none;
+            border: none;
+            color: rgba(3,218,198,0.6);
+            cursor: pointer;
+            font-size: 13px;
+            padding: 2px 5px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .tm-io-btn:hover { color: #03dac6; background: rgba(3,218,198,0.12); }
         .tm-clear-btn {
             background: none;
             border: none;
@@ -3668,7 +3773,7 @@ def get_html_content():
                 INIT: `<div class="title">Welcome | 欢迎</div><div class="subtitle">Enhanced Translator with Layout Sensing | 增强版布局感知翻译器</div><div class="progress-container"><div class="progress-bar"><div class="progress-fill"></div></div></div><div id="init-status" class="terms-status">Initializing... | 初始化中...</div>`,
                 API_INPUT: `<div class="title">API Key | API密钥</div><div class="subtitle">Enter your DeepSeek API key | 请输入DeepSeek API密钥</div><div class="input-group"><input type="password" class="input-field" id="apiKey" placeholder="sk-..."></div><button class="btn btn-primary" id="apiSubmitBtn">Continue | 继续</button>`,
                 MODE_SELECT: `<div class="title">Select Mode | 选择模式</div><div class="subtitle">What would you like to do? | 您想做什么？</div><div class="mode-tabs"><div class="mode-tab active" id="translateTab"><span class="mode-tab-icon">🌐</span>Translate | 翻译</div><div class="mode-tab" id="proofreadTab"><span class="mode-tab-icon">✍️</span>Proofread | 校对</div></div><div id="mode-content"></div>`,
-                FILE_SELECT: `<div class="title">Select File | 选择文件</div><div class="subtitle">Choose a document to translate | 选择要翻译的文档</div><div class="glossary-toggle" id="glossaryToggle"><div class="glossary-toggle-label"><span class="glossary-icon">📚</span><div><div class="glossary-text">Glossary | 术语表</div><div class="glossary-count" id="glossary-count">Loading...</div></div></div><div class="toggle-switch" id="glossarySwitch"></div></div><div class="glossary-files" id="glossary-files"></div><div class="tm-bar" id="tm-bar"><span class="tm-icon">🧠</span><span id="tm-stats">TM: loading...</span><button class="tm-clear-btn" id="tm-clear-btn" title="Clear TM">✕</button></div><button class="btn btn-primary" id="fileSelectBtn">Select File | 选择文件</button><button class="btn btn-secondary" id="batchSelectBtn">Batch Mode | 批量模式</button><button class="btn btn-secondary" id="switchToProofreadBtn">✍️ Proofread Mode | 校对模式</button><div class="poetry-quote" id="poetry"></div>`,
+                FILE_SELECT: `<div class="title">Select File | 选择文件</div><div class="subtitle">Choose a document to translate | 选择要翻译的文档</div><div class="glossary-toggle" id="glossaryToggle"><div class="glossary-toggle-label"><span class="glossary-icon">📚</span><div><div class="glossary-text">Glossary | 术语表</div><div class="glossary-count" id="glossary-count">Loading...</div></div></div><div class="toggle-switch" id="glossarySwitch"></div></div><div class="glossary-files" id="glossary-files"></div><div class="tm-bar" id="tm-bar"><span class="tm-icon">🧠</span><span id="tm-stats">TM: loading...</span><button class="tm-io-btn" id="tm-export-btn" title="Export TM to CSV | 导出记忆库">⬇</button><button class="tm-io-btn" id="tm-import-btn" title="Import TM from CSV | 导入记忆库">⬆</button><button class="tm-clear-btn" id="tm-clear-btn" title="Clear TM">✕</button></div><button class="btn btn-primary" id="fileSelectBtn">Select File | 选择文件</button><button class="btn btn-secondary" id="batchSelectBtn">Batch Mode | 批量模式</button><button class="btn btn-secondary" id="switchToProofreadBtn">✍️ Proofread Mode | 校对模式</button><div class="poetry-quote" id="poetry"></div>`,
                 PROOFREAD_SELECT: `<div class="title">Proofread | 校对</div><div class="subtitle">Check grammar and naturalness | 检查语法和自然度</div><button class="btn btn-primary" id="proofreadFileBtn">Select File | 选择文件</button><button class="btn btn-secondary" id="switchToTranslateBtn">🌐 Translate Mode | 翻译模式</button><div class="poetry-quote" id="poetry"></div>`,
                 PROOFREAD_LANG: `<div class="title">Document Language | 文档语言</div><div class="subtitle">What language is the document in? | 文档是什么语言？</div><div class="btn-group"><button class="btn btn-primary" data-lang="English">English</button><button class="btn btn-primary" data-lang="Chinese">中文</button></div><div class="input-group" style="margin-top:12px"><input type="text" class="input-field" id="customLangInput" placeholder="Other language... | 其他语言..."></div><button class="btn btn-secondary" id="customLangBtn">Use Custom | 使用自定义</button>`,
                 PROOFREAD_OPTIONS: `<div class="title">Check Options | 检查选项</div><div class="subtitle">What to check? | 检查什么内容？</div><div class="proofread-options"><div class="proofread-option selected" data-option="grammar"><div class="proofread-checkbox">✓</div><div class="proofread-label"><div class="proofread-label-title">Grammar | 语法</div><div class="proofread-label-desc">Check grammar errors | 检查语法错误</div></div></div><div class="proofread-option selected" data-option="natural"><div class="proofread-checkbox">✓</div><div class="proofread-label"><div class="proofread-label-title">Naturalness | 自然度</div><div class="proofread-label-desc">Check if expressions sound natural | 检查表达是否自然</div></div></div><div class="proofread-option selected" data-option="style"><div class="proofread-checkbox">✓</div><div class="proofread-label"><div class="proofread-label-title">Style | 风格</div><div class="proofread-label-desc">Check consistency and tone | 检查一致性和语调</div></div></div></div><button class="btn btn-primary" id="startProofreadBtn">Start Proofreading | 开始校对</button>`,
@@ -4151,6 +4256,30 @@ def get_html_content():
                                 await window.pywebview.api.clear_tm();
                                 const el = document.getElementById('tm-stats');
                                 if (el) el.textContent = 'TM: empty | 记忆库已清空';
+                            }
+                        });
+
+                        // 导出记忆库
+                        document.getElementById('tm-export-btn')?.addEventListener('click', async (e) => {
+                            e.stopPropagation();
+                            const r = await window.pywebview.api.export_tm();
+                            if (r && r.success) {
+                                updateStatusInfo('TM Export | 记忆库导出', `Exported ${r.count} entries → ${r.path}`);
+                            } else if (r && r.error !== 'cancelled') {
+                                updateStatusInfo('TM Export | 记忆库导出', `Failed: ${r.error}`);
+                            }
+                        });
+                        // 导入记忆库
+                        document.getElementById('tm-import-btn')?.addEventListener('click', async (e) => {
+                            e.stopPropagation();
+                            const r = await window.pywebview.api.import_tm();
+                            if (r && r.success) {
+                                updateStatusInfo('TM Import | 记忆库导入', `Imported ${r.imported}, skipped ${r.skipped}`);
+                                const el = document.getElementById('tm-stats');
+                                const stats = await window.pywebview.api.get_tm_stats();
+                                if (el && stats) el.textContent = `TM: ${stats.total} segments`;
+                            } else if (r && r.error !== 'cancelled') {
+                                updateStatusInfo('TM Import | 记忆库导入', `Failed: ${r.error}`);
                             }
                         });
 

@@ -182,6 +182,37 @@ def test_bisection_zero_drop():
     print('test_bisection_zero_drop: PASS')
 
 
+def test_tm_export_import_roundtrip():
+    """TM 导出→导入往返；导入时过滤污染行（译文=原文 / 语言不符）。"""
+    import tempfile
+    d = tempfile.mkdtemp()
+    tm = ncat.TranslationMemory(os.path.join(d, 'tm.db'))
+    tm.store('网络安全', 'ネットワークセキュリティ', 'chinese', 'japanese')
+    tm.store('机密文件', 'Confidential document', 'chinese', 'english')
+    csv_path = os.path.join(d, 'export.csv')
+    assert tm.export_csv(csv_path) == 2
+
+    # 导入到一个全新的库，应完整还原
+    tm2 = ncat.TranslationMemory(os.path.join(d, 'tm2.db'))
+    imported, skipped = tm2.import_csv(csv_path, validate=True)
+    assert imported == 2 and skipped == 0
+    assert tm2.lookup('网络安全', 'chinese', 'japanese') == 'ネットワークセキュリティ'
+    assert tm2.lookup('机密文件', 'chinese', 'english') == 'Confidential document'
+
+    # 构造带污染行的 CSV：译文=原文、日文列却是纯中文 → 导入时被跳过
+    bad = os.path.join(d, 'bad.csv')
+    with open(bad, 'w', encoding='utf-8-sig', newline='') as f:
+        f.write('source,target,source_lang,target_lang\n')
+        f.write('原样,原样,chinese,japanese\n')          # 译文=原文
+        f.write('这段,完全是中文没有假名,chinese,japanese\n')  # 日文目标却纯中文
+        f.write('数据,データ,chinese,japanese\n')          # 合法
+    tm3 = ncat.TranslationMemory(os.path.join(d, 'tm3.db'))
+    imp, skp = tm3.import_csv(bad, validate=True)
+    assert imp == 1 and skp == 2, (imp, skp)
+    assert tm3.lookup('数据', 'chinese', 'japanese') == 'データ'
+    print('test_tm_export_import_roundtrip: PASS')
+
+
 if __name__ == '__main__':
     fns = [v for k, v in sorted(globals().items()) if k.startswith('test_') and callable(v)]
     for fn in fns:
