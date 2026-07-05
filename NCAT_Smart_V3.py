@@ -1757,6 +1757,56 @@ def extract_ppt_elements_enhanced(prs, elements: List[PPTElementInfo]):
         pass
 
 
+def _sanitize_lang_for_filename(lang: str) -> str:
+    """把语言名清成安全的文件名片段，如 'Chinese (Simplified)' -> 'chinese_simplified'。"""
+    s = re.sub(r'[^0-9a-zA-Z一-鿿]+', '_', (lang or 'target').strip().lower())
+    return s.strip('_') or 'target'
+
+
+def save_glossary_csv(pairs: Dict[str, str], path: str, merge: bool = True) -> Tuple[int, int]:
+    """
+    把术语对写入 CSV（列名 source,target）。merge=True 时与既有文件按 source 合并去重。
+    返回 (合并后总条数, 本次新增条数)。用于把仲裁出的专业词沉淀成持久术语表。
+    """
+    import csv
+    existing: Dict[str, str] = {}
+    if merge and os.path.exists(path):
+        for enc in ('utf-8-sig', 'utf-8', 'gbk', 'latin1'):
+            try:
+                with open(path, 'r', encoding=enc, newline='') as f:
+                    reader = csv.DictReader(f)
+                    fields = reader.fieldnames or []
+                    cols = {c.strip().lower(): c for c in fields}
+                    sc = cols.get('source') or cols.get('原文') or (fields[0] if fields else None)
+                    tc = cols.get('target') or cols.get('译文') or (fields[1] if len(fields) > 1 else None)
+                    if sc and tc:
+                        for row in reader:
+                            s = (row.get(sc) or '').strip()
+                            t = (row.get(tc) or '').strip()
+                            if s and t:
+                                existing[s] = t
+                break
+            except UnicodeDecodeError:
+                continue
+            except Exception:
+                break
+    added = 0
+    for s, t in pairs.items():
+        s, t = (s or '').strip(), (t or '').strip()
+        if not s or not t:
+            continue
+        if s not in existing:
+            added += 1
+        existing[s] = t
+    os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+    with open(path, 'w', encoding='utf-8-sig', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['source', 'target'])
+        for s, t in existing.items():
+            w.writerow([s, t])
+    return len(existing), added
+
+
 def maybe_arbitrate_terms(source_texts, term_map, term_re, translator,
                           source_lang, target_lang, adv, progress_callback):
     """
@@ -1785,6 +1835,15 @@ def maybe_arbitrate_terms(source_texts, term_map, term_re, translator,
                 added += 1
         new_re = re.compile('|'.join(map(re.escape, sorted(merged.keys(), key=len, reverse=True)))) if merged else None
         progress_callback.info(f"Term arbitration: +{added} unified terms | 译法仲裁：统一{added}个专业词")
+        # 沉淀为持久术语表：按仲裁目标语言分文件，下次经 glossary 系统自动复用（免重复抽词花token）
+        try:
+            terms_dir = os.path.join(get_script_directory(), DEFAULT_CONFIG['TERMS_DIR'])
+            out_path = os.path.join(terms_dir, f"arbitrated_{_sanitize_lang_for_filename(arb_target)}.csv")
+            total, new_saved = save_glossary_csv(arbitrated, out_path, merge=True)
+            progress_callback.info(
+                f"Arbitrated terms saved → {os.path.basename(out_path)} ({total} total) | 仲裁术语已沉淀，下次自动复用")
+        except Exception as e:
+            print(f"Save arbitrated terms failed: {e}")
         return merged, new_re
     except Exception as e:
         print(f"Term arbitration failed: {e}")

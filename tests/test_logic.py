@@ -138,17 +138,23 @@ def test_translate_pipeline_pivot_confidential_context():
 
 
 def test_term_arbitration():
+    import re
+    import tempfile
     class Arb:
         def arbitrate_terms(self, texts, s, t, existing=None):
             return {'量子比特': 'qubit', '纠缠态': 'entangled state'}
-    import re
     tm_map = {'已知词': 'known'}
     tm_re = re.compile('已知词')
     m2, r2 = ncat.maybe_arbitrate_terms(['量子比特'], tm_map, tm_re, Arb(),
             'Chinese', 'English', {'termArbitration': False}, CB())
     assert m2 is tm_map
-    m3, r3 = ncat.maybe_arbitrate_terms(['量子比特和纠缠态'], tm_map, tm_re, Arb(),
-            'Chinese', 'English', {'termArbitration': True}, CB())
+    old = ncat.DEFAULT_CONFIG['TERMS_DIR']
+    ncat.DEFAULT_CONFIG['TERMS_DIR'] = tempfile.mkdtemp()  # 别把仲裁术语写进仓库 terms/
+    try:
+        m3, r3 = ncat.maybe_arbitrate_terms(['量子比特和纠缠态'], tm_map, tm_re, Arb(),
+                'Chinese', 'English', {'termArbitration': True}, CB())
+    finally:
+        ncat.DEFAULT_CONFIG['TERMS_DIR'] = old
     assert m3['量子比特'] == 'qubit' and m3['已知词'] == 'known' and r3.search('用量子比特')
     print('test_term_arbitration: PASS')
 
@@ -211,6 +217,48 @@ def test_tm_export_import_roundtrip():
     assert imp == 1 and skp == 2, (imp, skp)
     assert tm3.lookup('数据', 'chinese', 'japanese') == 'データ'
     print('test_tm_export_import_roundtrip: PASS')
+
+
+def test_save_glossary_csv_merge():
+    import tempfile
+    import csv as _csv
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, 'g.csv')
+    total, added = ncat.save_glossary_csv({'量子比特': 'qubit', '纠缠态': 'entangled state'}, p)
+    assert (total, added) == (2, 2)
+    # 合并：一个重复(覆盖) + 一个新增
+    total, added = ncat.save_glossary_csv({'量子比特': 'qubit', '超导': 'superconducting'}, p)
+    assert total == 3 and added == 1
+    rows = {}
+    with open(p, encoding='utf-8-sig') as f:
+        for r in _csv.DictReader(f):
+            rows[r['source']] = r['target']
+    assert rows == {'量子比特': 'qubit', '纠缠态': 'entangled state', '超导': 'superconducting'}
+    assert ncat._sanitize_lang_for_filename('Chinese (Simplified)') == 'chinese_simplified'
+    print('test_save_glossary_csv_merge: PASS')
+
+
+def test_arbitration_persists_glossary():
+    import tempfile
+    terms_dir = tempfile.mkdtemp()
+    old = ncat.DEFAULT_CONFIG['TERMS_DIR']
+    ncat.DEFAULT_CONFIG['TERMS_DIR'] = terms_dir  # 绝对路径，重定向到临时目录
+    try:
+        class Arb:
+            def arbitrate_terms(self, texts, s, t, existing=None):
+                return {'防火墙': 'firewall', '入侵检测': 'intrusion detection'}
+        m, r = ncat.maybe_arbitrate_terms(['防火墙与入侵检测'], {}, None, Arb(),
+                'Chinese', 'German', {'termArbitration': True, 'pivot': True}, CB())
+        # 小语种(德语)+pivot → 仲裁目标为英文，落到 arbitrated_english.csv
+        out = os.path.join(terms_dir, 'arbitrated_english.csv')
+        assert os.path.exists(out), '仲裁术语未沉淀'
+        import csv as _csv
+        with open(out, encoding='utf-8-sig') as f:
+            saved = {row['source']: row['target'] for row in _csv.DictReader(f)}
+        assert saved.get('防火墙') == 'firewall' and saved.get('入侵检测') == 'intrusion detection'
+        print('test_arbitration_persists_glossary: PASS')
+    finally:
+        ncat.DEFAULT_CONFIG['TERMS_DIR'] = old
 
 
 if __name__ == '__main__':
