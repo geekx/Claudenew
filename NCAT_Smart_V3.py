@@ -2419,6 +2419,14 @@ def extract_docx_textbox_paragraphs(doc, elements) -> int:
         return 0
 
 
+def compute_output_path(file_path: str, translation_mode: str) -> str:
+    """按翻译模式推导输出文件路径（替换=--OP，双语=--bilingual）。
+    批处理续跳与主流程共用，避免两处后缀逻辑漂移。"""
+    base, ext = os.path.splitext(file_path)
+    mode_suffix = "--bilingual" if translation_mode == "append" else DEFAULT_CONFIG['OUTPUT_SUFFIX']
+    return f"{base}{mode_suffix}{ext}"
+
+
 def run_translation_process(settings, progress_callback, is_batch=False, file_index=0, total_files=0):
     """主翻译流程"""
     global GLOSSARY_ENABLED
@@ -2468,9 +2476,8 @@ def run_translation_process(settings, progress_callback, is_batch=False, file_in
         
         ext = os.path.splitext(file_path)[1].lower()
         
-        # 根据翻译模式修改输出文件后缀
-        mode_suffix = "--bilingual" if translation_mode == "append" else DEFAULT_CONFIG['OUTPUT_SUFFIX']
-        output_path = f"{os.path.splitext(file_path)[0]}{mode_suffix}{ext}"
+        # 根据翻译模式推导输出文件路径
+        output_path = compute_output_path(file_path, translation_mode)
         doc_obj = None
         
         progress_callback.status(f"Extracting from {os.path.basename(file_path)}... | 从{os.path.basename(file_path)}提取内容...")
@@ -2575,26 +2582,56 @@ def run_translation_process(settings, progress_callback, is_batch=False, file_in
         return False
 
 
+def is_batch_file_already_done(file_path: str, translation_mode: str) -> bool:
+    """
+    断点续跳：输出文件已存在且不早于源文件时，视为已翻译完成。
+    让中断的批处理重跑时自动跳过已完成的文件（配合 TM，未完成的文件重跑也近乎零成本）。
+    """
+    try:
+        out = compute_output_path(file_path, translation_mode)
+        if not os.path.exists(out):
+            return False
+        return os.path.getmtime(out) >= os.path.getmtime(file_path)
+    except Exception:
+        return False
+
+
 def run_batch_translation(settings, progress_callback):
     """批量翻译处理"""
     file_paths = settings.get('filePaths', [])
     if not file_paths:
         progress_callback.error("No files selected for batch processing")
         return
-    
+
+    translation_mode = settings.get('translationMode', 'replace')
+    skip_completed = settings.get('skipCompleted', True)  # 断点续跳，默认开
+
     file_list = "Selected files:\n" + "\n".join([f"• {os.path.basename(fp)}" for fp in file_paths])
     progress_callback.info(file_list)
-    
+
     successful_files, total_files, processed_files = 0, len(file_paths), []
-    
+    skipped_done = 0
+
     for i, file_path in enumerate(file_paths):
+        # 断点续跳：已完成的文件直接跳过
+        if skip_completed and is_batch_file_already_done(file_path, translation_mode):
+            skipped_done += 1
+            successful_files += 1
+            processed_files.append(os.path.basename(compute_output_path(file_path, translation_mode)))
+            progress_callback.batch_progress(i + 1, total_files, os.path.basename(file_path))
+            progress_callback.info(f"⏭ Already done, skipped | 已完成，跳过: {os.path.basename(file_path)}")
+            progress_callback.file_done(os.path.basename(file_path))
+            continue
+
         settings['currentFile'] = file_path
         if run_translation_process(settings, progress_callback, is_batch=True, file_index=i, total_files=total_files):
             successful_files += 1
-            output_name = f"{os.path.splitext(os.path.basename(file_path))[0]}--OP{os.path.splitext(file_path)[1]}"
-            processed_files.append(output_name)
+            processed_files.append(os.path.basename(compute_output_path(file_path, translation_mode)))
         # 通知前端：这张文档牌可以飞向角落了（失败的也要离场，避免牌堆卡住）
         progress_callback.file_done(os.path.basename(file_path))
+
+    if skipped_done:
+        progress_callback.info(f"Resumed batch: skipped {skipped_done} already-done files | 断点续跳: 跳过{skipped_done}个已完成文件")
     
     if processed_files:
         completed_list = "Completed files:\n" + "\n".join([f"✓ {fp}" for fp in processed_files])

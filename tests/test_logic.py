@@ -261,6 +261,57 @@ def test_arbitration_persists_glossary():
         ncat.DEFAULT_CONFIG['TERMS_DIR'] = old
 
 
+def test_batch_resume_skips_completed():
+    """批处理断点续跳：输出已存在的文件应被跳过，不再调用翻译流程。"""
+    import tempfile
+    import time as _time
+
+    class BatchCB:
+        def __init__(self): self.msgs = []
+        def progress(self, m): pass
+        def status(self, m): pass
+        def info(self, m): self.msgs.append(m)
+        def error(self, m): self.msgs.append(m)
+        def batch_progress(self, c, t, f): pass
+        def file_done(self, f): pass
+
+    d = tempfile.mkdtemp()
+    srcs = []
+    for name in ('a', 'b', 'c'):
+        p = os.path.join(d, f'{name}.docx')
+        with open(p, 'w') as f:
+            f.write('x')
+        srcs.append(p)
+    # 预置 a 的输出（--OP），且比源文件新 → 应被跳过
+    done_out = ncat.compute_output_path(srcs[0], 'replace')
+    _time.sleep(0.01)
+    with open(done_out, 'w') as f:
+        f.write('translated')
+
+    assert ncat.is_batch_file_already_done(srcs[0], 'replace') is True
+    assert ncat.is_batch_file_already_done(srcs[1], 'replace') is False
+
+    calls = []
+    orig = ncat.run_translation_process
+    def fake_run(settings, cb, is_batch=False, file_index=0, total_files=0):
+        calls.append(settings.get('currentFile'))
+        with open(ncat.compute_output_path(settings['currentFile'], 'replace'), 'w') as f:
+            f.write('translated')
+        return True
+    ncat.run_translation_process = fake_run
+    try:
+        cb = BatchCB()
+        ncat.run_batch_translation(
+            {'filePaths': srcs, 'translationMode': 'replace', 'skipCompleted': True, 'apiKey': None}, cb)
+    finally:
+        ncat.run_translation_process = orig
+
+    # 只应翻译 b、c；a 被跳过
+    assert calls == [srcs[1], srcs[2]], calls
+    assert any('skipped 1' in m or '跳过1' in m for m in cb.msgs)
+    print('test_batch_resume_skips_completed: PASS')
+
+
 if __name__ == '__main__':
     fns = [v for k, v in sorted(globals().items()) if k.startswith('test_') and callable(v)]
     for fn in fns:
