@@ -178,6 +178,69 @@ def test_tm_end_to_end_reuse():
     print('test_tm_end_to_end_reuse: PASS')
 
 
+def test_dominant_run_formatting():
+    """多run段落的译文应套用「携带字符最多」的run格式，而非第一个run。
+    段首短加粗标签不应让整段译文变粗；反之主导run加粗时译文应加粗。"""
+    ncat = load_ncat(use_real_docx=True)
+
+    # 场景1：短加粗前缀 + 长正常正文 → 译文不应加粗
+    d = Document()
+    p = d.add_paragraph()
+    r1 = p.add_run('重要：'); r1.bold = True
+    p.add_run('这是一段很长的正文说明内容，占据段落绝大部分字符数量。')
+    ncat.update_element_text(p, 'やく〔本文〕です')
+    assert len(p.runs) == 1
+    assert p.runs[0].bold is not True, '短加粗前缀不应让整段译文加粗'
+
+    # 场景2：短正常前缀 + 长加粗正文 → 译文应加粗
+    d2 = Document()
+    p2 = d2.add_paragraph()
+    p2.add_run('注：')
+    r2 = p2.add_run('这一大段加粗文字才是段落的主体内容所在位置。'); r2.bold = True
+    ncat.update_element_text(p2, 'やく〔本文〕です')
+    assert p2.runs[0].bold is True, '主导run加粗时译文应加粗'
+    print('test_dominant_run_formatting: PASS')
+
+
+def test_single_pass_analysis():
+    """process_text_elements 应只做一遍术语保护（曾经分析+回填各算一遍）。"""
+    ncat = load_ncat(use_real_docx=True)
+    ncat._translation_memory = ncat.TranslationMemory(os.path.join(tempfile.mkdtemp(), 'tm.db'))
+
+    calls = []
+    orig = ncat.protect_and_replace_terms
+    def counting(text, term_map, term_re):
+        calls.append(text)
+        return orig(text, term_map, term_re)
+    ncat.protect_and_replace_terms = counting
+    try:
+        d = Document()
+        for i in range(4):
+            d.add_paragraph(f'第{i}段中文内容需要翻译处理')
+        els = [(p, p.text) for p in d.paragraphs if p.text.strip()]
+
+        class FakeJA:
+            def translate_batch(self, texts, s, t, formality='auto', context_hint=''):
+                return ['やく〔' + x + '〕です' for x in texts]
+            def _translate_single(self, text, s, t, formality='auto', context_hint=''):
+                return 'やく〔' + text + '〕です'
+
+        class CB:
+            def progress(self, m): pass
+            def status(self, m): pass
+            def info(self, m): pass
+            def error(self, m): pass
+
+        ncat.process_text_elements(els, {}, None, FakeJA(), 'Chinese', 'Japanese', CB(),
+                                   'replace', 'auto',
+                                   {'confidential': False, 'pivot': False, 'contextInference': False, 'fuzzyTM': True})
+    finally:
+        ncat.protect_and_replace_terms = orig
+    assert len(calls) == 4, f'应每元素保护一次，实际调用{len(calls)}次'
+    assert all(p.text.startswith('やく〔') for p in d.paragraphs), '单遍化后翻译结果不应变化'
+    print('test_single_pass_analysis: PASS')
+
+
 if __name__ == '__main__':
     if not HAVE_DOCX:
         print('⚠ python-docx 未安装，跳过 Word 集成测试')
@@ -185,4 +248,6 @@ if __name__ == '__main__':
     test_textbox_extraction_variants()
     test_word_end_to_end_no_drop()
     test_tm_end_to_end_reuse()
+    test_dominant_run_formatting()
+    test_single_pass_analysis()
     print('\n✅ Word 集成测试全部通过')

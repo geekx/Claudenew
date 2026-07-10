@@ -1330,6 +1330,17 @@ def calculate_bilingual_font_size(original_size_pt: float, source_lang: str, tar
     return (source_size, target_size)
 
 
+def dominant_run_info(original_runs: List[Dict]) -> Dict:
+    """
+    从段落的多个run中选「携带字符最多」的run作为整段译文的格式基准。
+    原实现固定取第一个run——若段首只是一小段加粗/彩色标签（如「重要：」），
+    整段译文会被错误地整体加粗/变色。按文本量选主导格式更符合视觉预期。
+    """
+    if not original_runs:
+        return {}
+    return max(original_runs, key=lambda r: r.get('text_len', 0))
+
+
 def update_element_bilingual(element_info: PPTElementInfo, translated_text: str, source_lang: str, target_lang: str, separator: str = "\n"):
     """
     双语模式更新元素：保留原文 + 追加译文
@@ -1350,6 +1361,8 @@ def update_element_bilingual(element_info: PPTElementInfo, translated_text: str,
                     'font_name': None, 'font_size': None, 'bold': False,
                     'italic': False, 'underline': False, 'color': None
                 }
+                try: run_info['text_len'] = len(run.text or '')
+                except: run_info['text_len'] = 0
                 try:
                     if hasattr(run, 'font'):
                         font = run.font
@@ -1365,7 +1378,7 @@ def update_element_bilingual(element_info: PPTElementInfo, translated_text: str,
                 except: pass
                 original_runs.append(run_info)
             
-            first_run_info = original_runs[0] if original_runs else {}
+            first_run_info = dominant_run_info(original_runs)  # 主导run做格式基准
             
             # 清空段落
             element.clear()
@@ -1460,6 +1473,8 @@ def update_element_text_with_font_adjustment(element_info: PPTElementInfo, new_t
                     'underline': False,
                     'color': None
                 }
+                try: run_info['text_len'] = len(run.text or '')
+                except: run_info['text_len'] = 0
                 try:
                     if hasattr(run, 'font'):
                         font = run.font
@@ -1484,7 +1499,7 @@ def update_element_text_with_font_adjustment(element_info: PPTElementInfo, new_t
             
             # 应用格式
             if original_runs and hasattr(new_run, 'font'):
-                first_run = original_runs[0]
+                first_run = dominant_run_info(original_runs)  # 主导run做格式基准
                 try:
                     if first_run['font_name']:
                         new_run.font.name = first_run['font_name']
@@ -1539,6 +1554,8 @@ def update_element_text(element: Any, new_text: str):
                     'font_name': None, 'font_size': None, 'bold': False,
                     'italic': False, 'underline': False, 'color': None
                 }
+                try: run_info['text_len'] = len(run.text or '')
+                except: run_info['text_len'] = 0
                 try:
                     if hasattr(run, 'font'):
                         font = run.font
@@ -1571,7 +1588,7 @@ def update_element_text(element: Any, new_text: str):
                 new_run.text = new_text
             
             if original_runs and hasattr(new_run, 'font'):
-                first_run = original_runs[0]
+                first_run = dominant_run_info(original_runs)  # 主导run做格式基准
                 try:
                     if first_run['font_name']: new_run.font.name = first_run['font_name']
                 except: pass
@@ -1978,6 +1995,7 @@ def process_ppt_elements(elements: List[PPTElementInfo], term_map, term_re, tran
     tm_rejected_count = 0
     tm_hit_map: Dict[str, str] = {}            # protected_text -> TM translation
     protected_to_source: Dict[str, str] = {}   # protected_text -> raw original (for TM write-back)
+    pending: List[Tuple[PPTElementInfo, str]] = []  # (elem_info, protected_text) 单遍分析结果，回填直接复用
 
     for elem_info in elements:
         original_text = elem_info.original_text
@@ -1992,6 +2010,7 @@ def process_ppt_elements(elements: List[PPTElementInfo], term_map, term_re, tran
         if needs_translation:
             protected_text = protect_and_replace_terms(original_text, term_map, term_re)
             protected_to_source[protected_text] = original_text
+            pending.append((elem_info, protected_text))
             # Check TM first (exact then fuzzy/normalized) by RAW source text
             if tm:
                 tm_result = tm.lookup(original_text, source_lang, target_lang, fuzzy=adv.get('fuzzyTM', True))
@@ -2042,37 +2061,30 @@ def process_ppt_elements(elements: List[PPTElementInfo], term_map, term_re, tran
     font_adjusted_count = 0
     untranslated_count = 0  # 完整性审计：应译但仍为原文的段落
 
-    for elem_info in elements:
-        if is_text_already_target_language(elem_info.original_text, target_lang):
-            continue
+    # 复用单遍分析结果，不再重复做语言检测/术语保护（大文档下这曾是双倍开销）
+    for elem_info, protected_text in pending:
+        # Prefer TM hit, then API result, then original
+        final_text = tm_hit_map.get(protected_text) or api_translation_map.get(protected_text, elem_info.original_text)
+        final_text = clean_dnt_tags(final_text)
+        # 兜底：结果语言明显不符时保留原文，不把半成品写进文档
+        if final_text.strip() != elem_info.original_text.strip() and not tm_matches_target_language(final_text, target_lang):
+            final_text = elem_info.original_text
+        elem_info.translated_text = final_text
 
-        segments = detect_mixed_language_segments(elem_info.original_text, source_lang)
-        needs_translation = any(needs_trans for _, needs_trans in segments)
-
-        if needs_translation:
-            protected_text = protect_and_replace_terms(elem_info.original_text, term_map, term_re)
-            # Prefer TM hit, then API result, then original
-            final_text = tm_hit_map.get(protected_text) or api_translation_map.get(protected_text, elem_info.original_text)
-            final_text = clean_dnt_tags(final_text)
-            # 兜底：结果语言明显不符时保留原文，不把半成品写进文档
-            if final_text.strip() != elem_info.original_text.strip() and not tm_matches_target_language(final_text, target_lang):
-                final_text = elem_info.original_text
-            elem_info.translated_text = final_text
-
-            if elem_info.original_text != final_text:
-                try:
-                    if is_bilingual:
-                        update_element_bilingual(elem_info, final_text, source_lang, target_lang, separator="\n")
-                    else:
-                        update_element_text_with_font_adjustment(elem_info, final_text, source_lang, target_lang)
-                    updated_count += 1
-                    if elem_info.adjusted_font_size:
-                        font_adjusted_count += 1
-                except Exception as e:
-                    print(f"Error updating element: {e}")
-                    progress_callback.error(f"Error updating text: {str(e)}")
-            elif text_needs_translation_output(elem_info.original_text):
-                untranslated_count += 1  # 该译却没译，记为漏译
+        if elem_info.original_text != final_text:
+            try:
+                if is_bilingual:
+                    update_element_bilingual(elem_info, final_text, source_lang, target_lang, separator="\n")
+                else:
+                    update_element_text_with_font_adjustment(elem_info, final_text, source_lang, target_lang)
+                updated_count += 1
+                if elem_info.adjusted_font_size:
+                    font_adjusted_count += 1
+            except Exception as e:
+                print(f"Error updating element: {e}")
+                progress_callback.error(f"Error updating text: {str(e)}")
+        elif text_needs_translation_output(elem_info.original_text):
+            untranslated_count += 1  # 该译却没译，记为漏译
 
     summary = f"Updated {updated_count} elements"
     if tm_hit_count > 0:
@@ -2118,6 +2130,7 @@ def process_text_elements(elements, term_map, term_re, translator, source_lang, 
     tm_rejected_count = 0
     tm_hit_map: Dict[str, str] = {}
     protected_to_source: Dict[str, str] = {}
+    pending: List[Tuple[Any, str, str]] = []  # (element, original_text, protected_text) 单遍分析结果
 
     for element, original_text in elements:
         if is_text_already_target_language(original_text, target_lang):
@@ -2130,6 +2143,7 @@ def process_text_elements(elements, term_map, term_re, translator, source_lang, 
         if needs_translation:
             protected_text = protect_and_replace_terms(original_text, term_map, term_re)
             protected_to_source[protected_text] = original_text
+            pending.append((element, original_text, protected_text))
             if tm:
                 tm_result = tm.lookup(original_text, source_lang, target_lang, fuzzy=adv.get('fuzzyTM', True))
                 if tm_result:
@@ -2172,33 +2186,26 @@ def process_text_elements(elements, term_map, term_re, translator, source_lang, 
 
     updated_count = 0
     untranslated_count = 0  # 完整性审计：应译但仍为原文的段落
-    for element, original_text in elements:
-        if is_text_already_target_language(original_text, target_lang):
-            continue
+    # 复用单遍分析结果，不再重复做语言检测/术语保护（大文档下这曾是双倍开销）
+    for element, original_text, protected_text in pending:
+        final_text = tm_hit_map.get(protected_text) or api_translation_map.get(protected_text, original_text)
+        final_text = clean_dnt_tags(final_text)
+        # 兜底：结果语言明显不符时保留原文，不把半成品写进文档
+        if final_text.strip() != original_text.strip() and not tm_matches_target_language(final_text, target_lang):
+            final_text = original_text
 
-        segments = detect_mixed_language_segments(original_text, source_lang)
-        needs_translation = any(needs_trans for _, needs_trans in segments)
-
-        if needs_translation:
-            protected_text = protect_and_replace_terms(original_text, term_map, term_re)
-            final_text = tm_hit_map.get(protected_text) or api_translation_map.get(protected_text, original_text)
-            final_text = clean_dnt_tags(final_text)
-            # 兜底：结果语言明显不符时保留原文，不把半成品写进文档
-            if final_text.strip() != original_text.strip() and not tm_matches_target_language(final_text, target_lang):
-                final_text = original_text
-
-            if original_text != final_text:
-                try:
-                    if is_bilingual:
-                        update_element_text(element, f"{original_text}\n{final_text}")
-                    else:
-                        update_element_text(element, final_text)
-                    updated_count += 1
-                except Exception as e:
-                    print(f"Error updating element: {e}")
-                    progress_callback.error(f"Error updating text: {str(e)}")
-            elif text_needs_translation_output(original_text):
-                untranslated_count += 1  # 该译却没译，记为漏译
+        if original_text != final_text:
+            try:
+                if is_bilingual:
+                    update_element_text(element, f"{original_text}\n{final_text}")
+                else:
+                    update_element_text(element, final_text)
+                updated_count += 1
+            except Exception as e:
+                print(f"Error updating element: {e}")
+                progress_callback.error(f"Error updating text: {str(e)}")
+        elif text_needs_translation_output(original_text):
+            untranslated_count += 1  # 该译却没译，记为漏译
 
     summary = f"Successfully updated {updated_count} elements"
     if tm_hit_count > 0:
