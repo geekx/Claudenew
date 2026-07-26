@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CoCo-doc</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <button id="new-doc" class="new-doc-btn">+ New document</button>
+    <ul id="doc-list" class="doc-list"></ul>
+  </aside>
+  <main class="editor-pane">
+    <div id="empty-state" class="empty-state">
+      <p>Select a document, or create a new one to get started.</p>
+    </div>
+    <div id="editor" class="editor" hidden>
+      <div class="toolbar">
+        <button data-cmd="bold" title="Bold"><b>B</b></button>
+        <button data-cmd="italic" title="Italic"><i>I</i></button>
+        <button data-cmd="underline" title="Underline"><u>U</u></button>
+        <button data-cmd="formatBlock" data-value="H1" title="Heading 1">H1</button>
+        <button data-cmd="formatBlock" data-value="H2" title="Heading 2">H2</button>
+        <button data-cmd="insertUnorderedList" title="Bulleted list">&bull; List</button>
+        <button data-cmd="insertOrderedList" title="Numbered list">1. List</button>
+        <span id="save-status" class="save-status"></span>
+      </div>
+      <input id="title-input" class="title-input" placeholder="Untitled document" />
+      <div id="content" class="content" contenteditable="true"></div>
+    </div>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

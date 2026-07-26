@@ -1,0 +1,29 @@
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #1f2328; }
+.app { display: flex; height: 100vh; }
+
+.sidebar { width: 260px; flex-shrink: 0; border-right: 1px solid #e1e4e8; padding: 12px; overflow-y: auto; background: #fafbfc; }
+.new-doc-btn { width: 100%; padding: 8px 10px; border: 1px solid #d0d7de; border-radius: 6px; background: #2563eb; color: #fff; font-size: 14px; cursor: pointer; }
+.new-doc-btn:hover { background: #1d4ed8; }
+
+.doc-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.doc-list li { padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.doc-list li:hover { background: #eef1f4; }
+.doc-list li.active { background: #dbeafe; }
+.doc-list li .doc-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.doc-list li .delete-btn { opacity: 0; border: none; background: none; cursor: pointer; color: #888; font-size: 13px; }
+.doc-list li:hover .delete-btn { opacity: 1; }
+
+.editor-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.empty-state { display: flex; align-items: center; justify-content: center; height: 100%; color: #6a737d; }
+
+.editor { display: flex; flex-direction: column; height: 100%; }
+.toolbar { display: flex; align-items: center; gap: 4px; padding: 8px 16px; border-bottom: 1px solid #e1e4e8; }
+.toolbar button { border: 1px solid #d0d7de; background: #fff; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 13px; }
+.toolbar button:hover { background: #f0f2f4; }
+.save-status { margin-left: auto; font-size: 12px; color: #6a737d; }
+
+.title-input { border: none; outline: none; font-size: 28px; font-weight: 600; padding: 20px 32px 8px; }
+.content { flex: 1; padding: 8px 32px 32px; outline: none; font-size: 16px; line-height: 1.6; overflow-y: auto; }
+.content h1 { font-size: 24px; }
+.content h2 { font-size: 20px; }
