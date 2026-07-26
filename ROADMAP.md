@@ -34,6 +34,24 @@ resilient to reprioritization.
 - **Success metric:** time from landing on the app to a saved first
   document < 30s.
 
+### Now — v0.1.5 (Embedded editable diagrams)
+Added after reviewing [icebird1998/scientific-illustrator](https://github.com/icebird1998/scientific-illustrator)
+— a Claude Code plugin that generates scientific diagrams as native,
+editable objects in PowerPoint/draw.io rather than flattened images. The
+transferable product insight: diagrams embedded in a document should stay
+editable shapes, not dead pixels. CoCo-doc adopts this as an in-editor
+vector diagram block (its own scope: simple shapes/connectors drawn and
+edited directly inside a document, not a port of the plugin's
+PPTX/draw.io automation, which is out of scope for a web editor).
+- [x] Insertable diagram block (rect/ellipse/arrow/text shapes) inside a
+  document, positioned via toolbar button
+- [x] Direct manipulation: select, drag-to-move, drag-to-resize, edit
+  label text, delete
+- [x] Diagram state serializes with the document (round-trips through
+  save/reload as structured data, not a rasterized image)
+- **Success metric:** a diagram inserted, edited, and saved still opens
+  fully editable after a page reload (no flattening to an image).
+
 ### Next — v0.2 (Sharing & history)
 - [ ] Shareable document links (unguessable IDs already in place from v0.1)
 - [ ] Version history / restore previous autosave snapshots

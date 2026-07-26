@@ -7,6 +7,7 @@
   const contentEl = document.getElementById('content');
   const saveStatus = document.getElementById('save-status');
   const toolbar = document.querySelector('.toolbar');
+  const insertDiagramBtn = document.getElementById('insert-diagram');
 
   let currentId = null;
   let saveTimer = null;
@@ -61,6 +62,7 @@
     editorEl.hidden = false;
     titleInput.value = doc.title;
     contentEl.innerHTML = doc.content || '';
+    window.CocoDiagram.hydrateAll(contentEl, scheduleSave);
     saveStatus.textContent = '';
     Array.from(docListEl.children).forEach((li, i) => {});
     refreshActiveHighlight();
@@ -95,6 +97,27 @@
 
   titleInput.addEventListener('input', scheduleSave);
   contentEl.addEventListener('input', scheduleSave);
+
+  insertDiagramBtn.addEventListener('click', () => {
+    contentEl.focus();
+    const block = window.CocoDiagram.build(window.CocoDiagram.createDefaultData(), scheduleSave);
+    const sel = window.getSelection();
+    let range;
+    if (sel && sel.rangeCount && contentEl.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+      range = sel.getRangeAt(0);
+    } else {
+      range = document.createRange();
+      range.selectNodeContents(contentEl);
+      range.collapse(false);
+    }
+    range.deleteContents();
+    range.insertNode(block);
+    range.setStartAfter(block);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    scheduleSave();
+  });
 
   toolbar.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-cmd]');
