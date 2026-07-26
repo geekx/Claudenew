@@ -53,11 +53,20 @@ PPTX/draw.io automation, which is out of scope for a web editor).
   fully editable after a page reload (no flattening to an image).
 
 ### Next — v0.2 (Sharing & history)
-- [ ] Shareable document links (unguessable IDs already in place from v0.1)
-- [ ] Version history / restore previous autosave snapshots
-- [ ] Basic lightweight auth (per-user document ownership)
+Split into independently shippable slices rather than one bundled
+release, so each lands as its own reviewable increment:
+- [x] v0.2a — Shareable document links: `#doc/<id>` URL routing, a
+  "Copy link" toolbar action, and a "not found" state for stale/deleted
+  links (previously the unguessable ID existed but no URL could open a
+  specific document directly)
+- [ ] v0.2b — Version history / restore previous autosave snapshots
+- [ ] v0.2c — Basic lightweight auth (per-user document ownership) —
+  deliberately last: the MVP's zero-friction, no-account onboarding is a
+  stated product goal, so auth should land only once sharing and history
+  are solid and the tradeoff (added signup friction) is worth it
 - **Success metric:** a shared link opens to the latest content with no
-  manual refresh needed.
+  manual refresh needed. *(met for v0.2a: reload at a `#doc/<id>` URL
+  reopens that exact document.)*
 
 ### Next — v0.3 (Real-time collaboration)
 - [ ] WebSocket transport

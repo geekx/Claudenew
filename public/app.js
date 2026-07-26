@@ -18,15 +18,15 @@
       ...options,
     });
     if (!res.ok && res.status !== 404) throw new Error(`request failed: ${res.status}`);
-    return res.status === 204 ? null : res.json();
+    return res.status === 204 || res.status === 404 ? null : res.json();
   }
 
-  async function refreshList(selectId) {
+  async function refreshList() {
     const docs = await api('/api/documents');
     docListEl.innerHTML = '';
     for (const doc of docs) {
       const li = document.createElement('li');
-      li.className = doc.id === currentId ? 'active' : '';
+      li.dataset.id = doc.id;
       const titleSpan = document.createElement('span');
       titleSpan.className = 'doc-title';
       titleSpan.textContent = doc.title || 'Untitled document';
@@ -42,21 +42,43 @@
         refreshList();
       });
       li.append(titleSpan, delBtn);
-      li.addEventListener('click', () => openDoc(doc.id));
+      li.addEventListener('click', () => navigateTo(doc.id));
       docListEl.appendChild(li);
     }
-    if (selectId) openDoc(selectId);
+    refreshActiveHighlight();
   }
 
   function closeEditor() {
     currentId = null;
     editorEl.hidden = true;
     emptyState.hidden = false;
+    emptyState.textContent = 'Select a document, or create a new one to get started.';
+    history.replaceState(null, '', location.pathname + location.search);
+    refreshActiveHighlight();
+  }
+
+  // Every open document gets a shareable #doc/<id> link: pasting the URL
+  // (or hitting back/forward) opens straight to that document via the
+  // hashchange router below, instead of only being reachable by clicking
+  // through the sidebar in this same session.
+  function navigateTo(id) {
+    if (location.hash === `#doc/${id}`) {
+      openDoc(id);
+    } else {
+      location.hash = `doc/${id}`;
+    }
   }
 
   async function openDoc(id) {
     const doc = await api(`/api/documents/${id}`);
-    if (!doc) return;
+    if (!doc) {
+      currentId = null;
+      editorEl.hidden = true;
+      emptyState.hidden = false;
+      emptyState.textContent = 'That document was not found — it may have been deleted.';
+      refreshActiveHighlight();
+      return;
+    }
     currentId = id;
     emptyState.hidden = true;
     editorEl.hidden = false;
@@ -64,14 +86,19 @@
     contentEl.innerHTML = doc.content || '';
     window.CocoDiagram.hydrateAll(contentEl, scheduleSave);
     saveStatus.textContent = '';
-    Array.from(docListEl.children).forEach((li, i) => {});
+    history.replaceState(null, '', `#doc/${id}`);
     refreshActiveHighlight();
   }
 
   function refreshActiveHighlight() {
     Array.from(docListEl.querySelectorAll('li')).forEach((li) => {
-      li.classList.remove('active');
+      li.classList.toggle('active', li.dataset.id === currentId);
     });
+  }
+
+  function routeFromHash() {
+    const match = /^#doc\/(.+)$/.exec(location.hash);
+    if (match) openDoc(match[1]);
   }
 
   function scheduleSave() {
@@ -92,7 +119,8 @@
 
   newDocBtn.addEventListener('click', async () => {
     const doc = await api('/api/documents', { method: 'POST', body: JSON.stringify({}) });
-    await refreshList(doc.id);
+    await refreshList();
+    navigateTo(doc.id);
   });
 
   titleInput.addEventListener('input', scheduleSave);
@@ -128,5 +156,18 @@
     scheduleSave();
   });
 
-  refreshList();
+  const copyLinkBtn = document.getElementById('copy-link');
+  copyLinkBtn.addEventListener('click', async () => {
+    if (!currentId) return;
+    await navigator.clipboard.writeText(location.href);
+    const original = saveStatus.textContent;
+    saveStatus.textContent = 'Link copied';
+    setTimeout(() => {
+      if (saveStatus.textContent === 'Link copied') saveStatus.textContent = original;
+    }, 1500);
+  });
+
+  window.addEventListener('hashchange', routeFromHash);
+
+  refreshList().then(routeFromHash);
 })();
