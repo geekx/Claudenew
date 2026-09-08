@@ -121,7 +121,10 @@
             <div class="border-b shrink-0 bg-slate-50">
                 <button onclick="toggleSettings()" class="w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-100/80 transition-all">
                     <span class="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><i data-lucide="settings-2" size="14"></i> 工艺装载参数</span>
-                    <i data-lucide="chevron-down" id="settingsChevron" size="14" class="text-slate-400 transition-transform duration-200"></i>
+                    <span class="flex items-center gap-2">
+                        <span id="settingsSummary" class="text-[10px] font-mono font-bold text-slate-400 normal-case tracking-normal"></span>
+                        <i data-lucide="chevron-down" id="settingsChevron" size="14" class="text-slate-400 transition-transform duration-200"></i>
+                    </span>
                 </button>
                 <div id="settingsPanel" class="hidden px-4 pt-2 pb-3 space-y-3">
                 <!-- 货柜模式参数 -->
@@ -223,19 +226,19 @@
                         <div class="grid grid-cols-3 gap-2">
                             <div>
                                 <label class="block text-[9px] font-black text-blue-600 uppercase mb-1 flex items-center gap-0.5">最大长度 (mm)</label>
-                                <input type="number" id="maxLengthLimit" value="6000" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
+                                <input type="number" id="maxLengthLimit" oninput="updateSettingsSummary()" value="6000" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                             <div>
                                 <label class="block text-[9px] font-black text-blue-600 uppercase mb-1 flex items-center gap-0.5">最大宽度 (mm)</label>
-                                <input type="number" id="maxWidthLimit" value="2200" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
+                                <input type="number" id="maxWidthLimit" oninput="updateSettingsSummary()" value="2200" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                             <div>
                                 <label class="block text-[9px] font-black text-blue-600 uppercase mb-1 flex items-center gap-0.5">最大高度 (mm)</label>
-                                <input type="number" id="maxHeightLimit" value="2200" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
+                                <input type="number" id="maxHeightLimit" oninput="updateSettingsSummary()" value="2200" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                         </div>
                         <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" id="allowMultiCrate" checked class="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
+                            <input type="checkbox" id="allowMultiCrate" checked onchange="updateSettingsSummary()" class="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
                             <span class="text-[11px] font-bold text-slate-600">超限自动分箱 (装不下的货物开新箱，而非丢弃)</span>
                         </label>
                         <div>
@@ -334,6 +337,7 @@
                             <div class="flex justify-between"><span class="text-slate-500">计算内尺寸 (mm):</span><span id="innerDimLabel" class="font-bold text-slate-800 font-mono">0 x 0 x 0</span></div>
                             <div class="flex justify-between"><span class="text-slate-500">实测外尺寸 (mm):</span><span id="outerDimLabel" class="font-bold text-amber-700 font-mono">0 x 0 x 0</span></div>
                             <div class="flex justify-between border-t border-amber-100 pt-1 mt-1"><span class="text-slate-500">预估外箱体积:</span><span id="boxVolLabel" class="font-bold text-slate-800 font-mono">0 m³</span></div>
+                            <div id="boxSplitNote" class="mt-1.5 pt-1.5 border-t border-amber-100 text-[10px] font-bold text-slate-500"></div>
                         </div>
                     </div>
 
@@ -731,11 +735,13 @@
             renderContainerList();
             renderCargoList();
             renderZoneList();
+            updateSettingsSummary();
             clearScene();
             lucide.createIcons();
         }
 
         function renderZoneList() {
+            updateSettingsSummary();
             const el = document.getElementById('zoneList');
             if (!el) return;
             if (!loadZones.length) {
@@ -766,6 +772,25 @@
         }
 
         // --- 核心切换控制 ---
+        /**
+         * 折叠状态下也要能看到关键限值，否则用户无从得知"为什么没有分箱"
+         */
+        function updateSettingsSummary() {
+            const el = document.getElementById('settingsSummary');
+            if (!el) return;
+            const g = id => { const e = document.getElementById(id); return e ? e.value : null; };
+
+            if (currentMode === 'box') {
+                const L = g('maxLengthLimit') || '—', W = g('maxWidthLimit') || '—', H = g('maxHeightLimit') || '—';
+                const cb = document.getElementById('allowMultiCrate');
+                const multi = cb ? cb.checked : true;
+                el.innerHTML = `限值 ${L}×${W}×${H} · 分箱<span class="${multi ? 'text-emerald-600' : 'text-red-500'}">${multi ? '开' : '关'}</span>`;
+            } else {
+                const n = loadZones.length;
+                el.innerHTML = n ? `${n} 个区域约束` : '';
+            }
+        }
+
         function toggleSettings() {
             const panel = document.getElementById('settingsPanel');
             const chevron = document.getElementById('settingsChevron');
@@ -851,6 +876,7 @@
             renderContainerList();
             renderCargoList();
             renderZoneList();
+            updateSettingsSummary();
             clearScene();
             lucide.createIcons();
         }
@@ -2633,6 +2659,35 @@
                 document.getElementById('outerDimLabel').innerText = outerStr;
                 document.getElementById('boxVolLabel').innerText = `${volumeM3} m³`;
 
+                // 说明本次是单箱还是分箱，以及是哪一条限值在起作用
+                const splitEl = document.getElementById('boxSplitNote');
+                if (splitEl) {
+                    const limL = parseFloat((document.getElementById('maxLengthLimit') || {}).value) || 0;
+                    const limW = parseFloat((document.getElementById('maxWidthLimit') || {}).value) || 0;
+                    const limH = parseFloat((document.getElementById('maxHeightLimit') || {}).value) || 0;
+                    const cb = document.getElementById('allowMultiCrate');
+                    const multiOn = cb ? cb.checked : true;
+                    const n = resultData.results.length;
+
+                    if (n > 1) {
+                        splitEl.className = 'mt-1.5 pt-1.5 border-t border-amber-100 text-[10px] font-bold text-emerald-700';
+                        splitEl.innerHTML = `<i data-lucide="package-plus" size="10" class="inline"></i> 已触发自动分箱：共 ${n} 箱，每箱按其实际内容独立定尺`;
+                    } else {
+                        const near = [
+                            limL && oL >= limL * 0.92 ? '长' : null,
+                            limW && oW >= limW * 0.92 ? '宽' : null,
+                            limH && oH >= limH * 0.92 ? '高' : null
+                        ].filter(Boolean);
+                        splitEl.className = 'mt-1.5 pt-1.5 border-t border-amber-100 text-[10px] font-bold text-slate-500';
+                        splitEl.innerHTML = !multiOn
+                            ? `<span class="text-red-500">自动分箱已关闭</span> · 超限货物将计入未装载`
+                            : (near.length
+                                ? `单箱方案 · ${near.join('/')}已接近限值 (${limL}×${limW}×${limH})`
+                                : `单箱方案 · 未触及限值 ${limL}×${limW}×${limH}，如需分箱请调小限值`);
+                    }
+                    lucide.createIcons();
+                }
+
                 // 开料清单
                 const panels = [
                     { name: '顶板', qty: 1, l: oL, w: oW, t: wt2 },
@@ -2945,6 +3000,7 @@
             lucide.createIcons();
             switchMode('container');
             renderZoneList();
+            updateSettingsSummary();
         }
 
         // --- 启动引导 ---
