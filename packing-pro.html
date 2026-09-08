@@ -220,16 +220,24 @@
 
                     <!-- 运输限界与策略控制 -->
                     <div id="boxLimitsContainer" class="space-y-3 bg-blue-50/40 p-3 rounded-xl border border-blue-100">
-                        <div class="grid grid-cols-2 gap-2">
+                        <div class="grid grid-cols-3 gap-2">
                             <div>
-                                <label class="block text-[9px] font-black text-blue-600 uppercase mb-1 flex items-center gap-0.5">最大宽度限制 (mm)</label>
+                                <label class="block text-[9px] font-black text-blue-600 uppercase mb-1 flex items-center gap-0.5">最大长度 (mm)</label>
+                                <input type="number" id="maxLengthLimit" value="6000" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[9px] font-black text-blue-600 uppercase mb-1 flex items-center gap-0.5">最大宽度 (mm)</label>
                                 <input type="number" id="maxWidthLimit" value="2200" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                             <div>
-                                <label class="block text-[9px] font-black text-blue-600 uppercase mb-1 flex items-center gap-0.5">最大高度限制 (mm)</label>
+                                <label class="block text-[9px] font-black text-blue-600 uppercase mb-1 flex items-center gap-0.5">最大高度 (mm)</label>
                                 <input type="number" id="maxHeightLimit" value="2200" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                         </div>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="allowMultiCrate" checked class="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
+                            <span class="text-[11px] font-bold text-slate-600">超限自动分箱 (装不下的货物开新箱，而非丢弃)</span>
+                        </label>
                         <div>
                             <label class="block text-[9px] font-black text-blue-600 uppercase mb-1 flex items-center gap-0.5">堆叠排布策略</label>
                             <select id="packingStrategy" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
@@ -548,6 +556,33 @@
                 if (cz > 0 && z + h > cz + 0.01) return false;
             }
             return true;
+        }
+
+        /**
+         * 播种初始极点集
+         * 极点只会从"已放置工件"派生，因此若原点(0,0,0)落在禁装区内，
+         * 将永远无法放下第一件货 → 整车解算为空。
+         * 故必须在每个区段的起止 X 断点、以及每个抬高台面高度上预置落脚点。
+         */
+        function seedZoneEps(zones, innerL, innerH) {
+            const xs = new Set([0]);
+            const zLevels = new Set([0]);
+
+            zones.forEach(zn => {
+                const s = parseFloat(zn.xStart) || 0;
+                const e = parseFloat(zn.xEnd) || 0;
+                if (e <= s) return;
+                if (s > 0 && s < innerL) xs.add(s);   // 区段起点
+                if (e > 0 && e < innerL) xs.add(e);   // 区段终点：禁装区之后的首个可落脚位
+                if (zn.type === 'raise') {
+                    const fz = parseFloat(zn.floorZ) || 0;
+                    if (fz > 0 && fz < innerH) zLevels.add(fz);
+                }
+            });
+
+            const eps = [];
+            xs.forEach(x => zLevels.forEach(z => eps.push({ x, y: 0, z })));
+            return eps;
         }
 
         function applyZonePreset(key) {
@@ -1330,7 +1365,7 @@
                         const strategy = document.getElementById('packingStrategy').value;
                         resultData = strategy === 'minCBM'
                             ? solveMinCBM(flatItems, wallThickness)
-                            : solveInversePackingBox(flatItems, wallThickness);
+                            : solveInversePackingMulti(flatItems, wallThickness);
                     } else {
                         const specs = STANDARD_CARTON_SPECS.filter(s => selectedBoxes.includes(s.id));
                         resultData = solveStandardPacking(flatItems, specs, false, wallThickness);
@@ -1385,13 +1420,7 @@
 
                     const packed = [];
                     const zones = getActiveZones();
-                    let eps = [{ x: 0, y: 0, z: 0 }];
-                    // 为抬高台区段播种落脚极点，使工件能落在抬高的地板面上
-                    zones.filter(z => z.type === 'raise').forEach(zn => {
-                        const fz = parseFloat(zn.floorZ) || 0;
-                        const xs = parseFloat(zn.xStart) || 0;
-                        if (fz > 0 && fz < innerH) eps.push({ x: xs, y: 0, z: fz });
-                    });
+                    let eps = seedZoneEps(zones, innerL, innerH);
                     let weight = 0;
                     let vol = 0;
                     const tempRemaining = [];
@@ -1539,6 +1568,8 @@
         function solveInversePackingBox(items, wallThickness = 15) {
             const maxWidthLimit = parseFloat(document.getElementById('maxWidthLimit').value) || 2200;
             const maxHeightLimit = parseFloat(document.getElementById('maxHeightLimit').value) || 2200;
+            const maxLenEl = document.getElementById('maxLengthLimit');
+            const maxLengthLimit = maxLenEl ? (parseFloat(maxLenEl.value) || 6000) : 6000;
             const packingStrategy = document.getElementById('packingStrategy').value;
 
             // 智能优化排序：优先将投影面积大（最宽平）、底盘稳的货物排在最前面，作为首先铺底的基准件
@@ -1552,6 +1583,7 @@
             });
             
             const packed = [];
+            const overflow = [];        // 本箱装不下的货物，交由上层开新箱
             let eps = [{ x: 0, y: 0, z: 0 }];
             let currentWidth = 0;
             let currentLength = 0;
@@ -1566,8 +1598,17 @@
             for (const item of sortedItems) {
                 let bestEP = null, bestRot = null, minFitScore = Infinity;
 
-                const usableW = Math.max(maxWidthLimit - (wallThickness * 2), item.effL, item.effW, item.effH);
-                const usableH = Math.max(maxHeightLimit - (wallThickness * 2), item.effL, item.effW, item.effH);
+                // 单件本身就超过限值时，按“最小尺寸配最小限值”逐轴配对，
+                // 仅对确实放不下的那一轴放宽到刚好容纳，避免整体限值失效
+                const relax = { L: maxLengthLimit - (wallThickness * 2),
+                                W: maxWidthLimit  - (wallThickness * 2),
+                                H: maxHeightLimit - (wallThickness * 2) };
+                const dimsAsc = [item.effL, item.effW, item.effH].sort((a, b) => a - b);
+                const limsAsc = [['L', relax.L], ['W', relax.W], ['H', relax.H]].sort((a, b) => a[1] - b[1]);
+                for (let i = 0; i < 3; i++) {
+                    if (dimsAsc[i] > limsAsc[i][1]) relax[limsAsc[i][0]] = dimsAsc[i];
+                }
+                const usableL = relax.L, usableW = relax.W, usableH = relax.H;
 
                 const rots = [
                     { l: item.effL, w: item.effW, h: item.effH, coreL: item.blockL, coreW: item.blockW, coreH: item.blockH, padL: item.lp, padW: item.wp, padH: item.hp, stackAxis: 'z' },
@@ -1589,8 +1630,9 @@
 
                 for (const ep of eps) {
                     for (const r of rots) {
-                        if (ep.y + r.w <= usableW && ep.z + r.h <= usableH) {
-                            const collides = packed.some(p => 
+                        // 三向限值同时约束：外箱不可无限加长
+                        if (ep.x + r.l <= usableL && ep.y + r.w <= usableW && ep.z + r.h <= usableH) {
+                            const collides = packed.some(p =>
                                 ep.x < p.x + p.rotL && ep.x + r.l > p.x &&
                                 ep.y < p.y + p.rotW && ep.y + r.w > p.y &&
                                 ep.z < p.z + p.rotH && ep.z + r.h > p.z
@@ -1664,6 +1706,9 @@
                     currentHeight = Math.max(currentHeight, bestEP.z + bestRot.h);
 
                     eps = pruneEpsList(eps, bestEP, bestRot, packed);
+                } else {
+                    // 装不下 → 移交上层开新箱（此前为静默丢弃）
+                    overflow.push(item);
                 }
             }
 
@@ -1678,8 +1723,9 @@
             };
 
             const innerVol = currentLength * currentWidth * currentHeight;
+            // 装载率只统计真正装进本箱的货物（此前误用全部入参，溢出时会虚高）
             let actualVolSum = 0;
-            items.forEach(it => { actualVolSum += it.l * it.w * it.h * (it.blockQty || 1); });
+            packed.forEach(it => { actualVolSum += it.l * it.w * it.h * (it.blockQty || 1); });
 
             const result = {
                 spec,
@@ -1692,7 +1738,44 @@
                 wallThickness
             };
 
-            return { results: [result], unpacked: [] };
+            return { results: packed.length ? [result] : [], unpacked: overflow };
+        }
+
+        /**
+         * 逆向求解外层调度：超出长/宽/高限值的货物自动开新箱
+         * 每一箱独立按其实际内容物右尺寸化 —— 尾箱货少即得小箱，实现"截断后推荐尺寸"
+         */
+        function solveInversePackingMulti(items, wallThickness, solver) {
+            const run = solver || ((its) => solveInversePackingBox(its, wallThickness));
+            const multiEl = document.getElementById('allowMultiCrate');
+            const allowMulti = multiEl ? multiEl.checked : true;
+
+            let remaining = [...items];
+            const results = [];
+            const MAX_CRATES = 40;   // 安全上限，防止病态输入导致箱数失控
+
+            while (remaining.length && results.length < MAX_CRATES) {
+                const startCount = remaining.length;
+                const res = run(remaining);
+
+                if (!res.results.length) break;              // 一件都装不下 → 交由未装载清单
+                results.push(...res.results);
+
+                if (!allowMulti) return { results, unpacked: res.unpacked || [] };
+
+                remaining = res.unpacked || [];
+                if (remaining.length >= startCount) break;   // 安全阀：本轮无进展
+            }
+
+            // 多箱时补上编号，便于报告与现场识别
+            if (results.length > 1) {
+                results.forEach((r, i) => {
+                    const cbm = (r.spec.l * r.spec.w * r.spec.h / 1e9).toFixed(3);
+                    r.spec.name = `定制外箱 #${i + 1}/${results.length} · ${r.spec.l}×${r.spec.w}×${r.spec.h}mm (${cbm}m³)`;
+                });
+            }
+
+            return { results, unpacked: remaining };
         }
 
         /**
@@ -1709,35 +1792,40 @@
                 return { min: d[0], mid: d[1], max: d[2] };
             }
 
-            // 尝试双箱方案，若总CBM优于当前最优（节省4%以上）则更新
+            // 总CBM = 该方案所有外箱体积之和（超长自动分箱后可能不止一箱）
+            const sumCBM = (res) => res.results.reduce((s, r) => s + r.spec.l * r.spec.w * r.spec.h, 0);
+            // 有货物完全装不下的方案不可采纳
+            const isComplete = (res) => res.results.length > 0 && (!res.unpacked || res.unpacked.length === 0);
+
+            // 尝试分组方案，若总CBM优于当前最优（节省4%以上）则更新
             function tryDual(gA, gB) {
                 if (!gA.length || !gB.length) return;
                 for (const strat of ['lowGravity', 'compactXZ', 'flatStack']) {
                     stratEl.value = strat;
-                    const rA = solveInversePackingBox(gA, wallThickness);
-                    const rB = solveInversePackingBox(gB, wallThickness);
-                    if (rA.results[0] && rB.results[0]) {
-                        const sA = rA.results[0].spec, sB = rB.results[0].spec;
-                        const dualCBM = sA.l*sA.w*sA.h + sB.l*sB.w*sB.h;
-                        if (dualCBM < bestCBM * 0.96) {
-                            bestCBM = dualCBM;
-                            rA.results[0].spec.name = `最小CBM-箱1 (${(sA.l*sA.w*sA.h/1e9).toFixed(3)}m³)`;
-                            rB.results[0].spec.name = `最小CBM-箱2 (${(sB.l*sB.w*sB.h/1e9).toFixed(3)}m³)`;
-                            best = { results: [...rA.results, ...rB.results], unpacked: [], multiBox: true };
-                        }
+                    const rA = solveInversePackingMulti(gA, wallThickness);
+                    const rB = solveInversePackingMulti(gB, wallThickness);
+                    if (!isComplete(rA) || !isComplete(rB)) continue;
+
+                    const dualCBM = sumCBM(rA) + sumCBM(rB);
+                    if (dualCBM < bestCBM * 0.96) {
+                        bestCBM = dualCBM;
+                        const merged = [...rA.results, ...rB.results];
+                        merged.forEach((r, i) => {
+                            const cbm = (r.spec.l * r.spec.w * r.spec.h / 1e9).toFixed(3);
+                            r.spec.name = `最小CBM-箱${i + 1}/${merged.length} · ${r.spec.l}×${r.spec.w}×${r.spec.h}mm (${cbm}m³)`;
+                        });
+                        best = { results: merged, unpacked: [], multiBox: true };
                     }
                 }
             }
 
-            // 单箱：三种策略各跑一遍（含竖向叠装）
+            // 单方案：三种策略各跑一遍（含竖向叠装），超长自动分箱
             for (const strat of ['lowGravity', 'compactXZ', 'flatStack']) {
                 stratEl.value = strat;
-                const res = solveInversePackingBox(items, wallThickness);
-                if (res.results[0]) {
-                    const s = res.results[0].spec;
-                    const cbm = s.l * s.w * s.h;
-                    if (cbm < bestCBM) { bestCBM = cbm; best = res; }
-                }
+                const res = solveInversePackingMulti(items, wallThickness);
+                if (!isComplete(res)) continue;
+                const cbm = sumCBM(res);
+                if (cbm < bestCBM) { bestCBM = cbm; best = res; }
             }
 
             if (items.length >= 2) {
@@ -1776,7 +1864,13 @@
             }
 
             stratEl.value = origStrategy;
-            return best || { results: [], unpacked: items };
+            if (best) return best;
+
+            // 无完整方案（存在装不进任何箱的超限件）→ 退回尽力而为的结果并如实报告未装载件
+            stratEl.value = 'lowGravity';
+            const fallback = solveInversePackingMulti(items, wallThickness);
+            stratEl.value = origStrategy;
+            return fallback.results.length ? fallback : { results: [], unpacked: items };
         }
 
         // --- 三维图形引擎 ---
@@ -1989,9 +2083,7 @@
             render3DHandlingIndicators(cogData, l, w, h, wt, isBoxMode, SKID_H);
             updateSafetyUI(cogData, l, w, h);
 
-            camera.position.set(l * 1.6, (h + SKID_H) * 2.2, w * 1.6);
-            controls.target.set(l / 2, (h + SKID_H) / 3, w / 2);
-            controls.update();
+            fitDimetricView(l, w, h + SKID_H, { margin: 1.12 });
 
             const animate = () => {
                 requestAnimationFrame(animate);
@@ -2094,6 +2186,52 @@
                 forkliftPoints, liftingPoints,
                 largestFace, faceDim1, faceDim2
             };
+        }
+
+        /**
+         * 斜二测风格视角 + 精确取景
+         * 将包围盒 8 个角点投影到相机的 right / up 基向量上，按水平与垂直
+         * 两个方向分别求出所需距离取其大者 —— 长箱体由水平方向定距，
+         * 于是横向铺满画幅，不再出现"物体缩在画面中间"的情况。
+         */
+        function fitDimetricView(l, w, h, opts = {}) {
+            if (!camera || !controls) return;
+            const center = new THREE.Vector3(l / 2, h / 2, w / 2);
+
+            const az = (opts.az !== undefined ? opts.az : 62) * Math.PI / 180;   // 方位角
+            const el = (opts.el !== undefined ? opts.el : 22) * Math.PI / 180;   // 仰角
+            const dir = new THREE.Vector3(
+                Math.cos(el) * Math.cos(az),
+                Math.sin(el),
+                Math.cos(el) * Math.sin(az)
+            ).normalize();
+
+            const worldUp = new THREE.Vector3(0, 1, 0);
+            const right = new THREE.Vector3().crossVectors(dir, worldUp).normalize();
+            const camUp = new THREE.Vector3().crossVectors(right, dir).normalize();
+
+            const vFov = camera.fov * Math.PI / 180;
+            const aspect = camera.aspect || 1.6;
+            const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
+            const tanH = Math.tan(hFov / 2), tanV = Math.tan(vFov / 2);
+            const margin = opts.margin !== undefined ? opts.margin : 1.05;
+
+            // 透视投影按各角点自身深度缩放，近端角点放得更大，
+            // 故需逐角点求解所需距离：|offset| <= (dist - along) * tan(fov/2)
+            let dist = 0;
+            for (const sx of [0, l]) for (const sy of [0, h]) for (const sz of [0, w]) {
+                const p = new THREE.Vector3(sx, sy, sz).sub(center);
+                const along = p.dot(dir);                       // >0 表示该角点更靠近相机
+                dist = Math.max(dist,
+                    Math.abs(p.dot(right)) / tanH + along,
+                    Math.abs(p.dot(camUp)) / tanV + along);
+            }
+            dist *= margin;
+
+            camera.position.copy(center).addScaledVector(dir, dist);
+            camera.lookAt(center);
+            controls.target.copy(center);
+            controls.update();
         }
 
         /**
@@ -2569,9 +2707,9 @@
 
                 const setIsoView = () => {
                     const { l, h, w } = container.spec;
-                    camera.position.set(l * 1.5, h * 1.8, w * 1.5);
-                    controls.target.set(l / 2, h / 3, w / 2);
-                    controls.update();
+                    const skid = isBoxMode ? 90 : 0;
+                    // 报告用：留白更小，横向铺满图框
+                    fitDimetricView(l, w, h + skid, { margin: 1.02 });
                 };
 
                 // A. 全景快照
