@@ -1,0 +1,583 @@
+<title>智装装箱 Pro 操作手册</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+  :root{
+    --ground:#f6f7f9; --surface:#ffffff; --surface-2:#f0f2f6;
+    --ink:#1a2330; --ink-2:#5a6472; --ink-3:#8b95a4;
+    --rule:#dde1e8; --rule-2:#c8cfda;
+    --accent:#1d4ed8; --accent-soft:#e8eeff;
+    --timber:#b45309; --timber-soft:#fdf1de;
+    --ok:#046c4e; --ok-soft:#e3f5ee;
+    --warn:#b42318; --warn-soft:#fdeceb;
+    --shadow:0 1px 2px rgba(20,30,50,.05),0 8px 24px rgba(20,30,50,.05);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#12151a; --surface:#191d24; --surface-2:#1f242c;
+      --ink:#e6eaf0; --ink-2:#a3adbb; --ink-3:#78828f;
+      --rule:#2b323c; --rule-2:#3a424e;
+      --accent:#7ea6ff; --accent-soft:#1c2740;
+      --timber:#e0a458; --timber-soft:#2e2314;
+      --ok:#5ecfa6; --ok-soft:#142b23;
+      --warn:#f4867c; --warn-soft:#32191a;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#12151a; --surface:#191d24; --surface-2:#1f242c;
+    --ink:#e6eaf0; --ink-2:#a3adbb; --ink-3:#78828f;
+    --rule:#2b323c; --rule-2:#3a424e;
+    --accent:#7ea6ff; --accent-soft:#1c2740;
+    --timber:#e0a458; --timber-soft:#2e2314;
+    --ok:#5ecfa6; --ok-soft:#142b23;
+    --warn:#f4867c; --warn-soft:#32191a;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.28);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:"Noto Sans SC",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    font-size:15px; line-height:1.75; -webkit-font-smoothing:antialiased;
+  }
+  code,.mono,.dim{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:0 28px;display:grid;grid-template-columns:212px minmax(0,1fr);gap:52px;align-items:start}
+  @media(max-width:960px){.wrap{grid-template-columns:1fr;gap:0}}
+
+  /* ---- masthead ---- */
+  header.top{border-bottom:1px solid var(--rule);background:var(--surface)}
+  .top-in{max-width:1180px;margin:0 auto;padding:38px 28px 30px}
+  .eyebrow{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);margin:0 0 12px}
+  h1{font-size:34px;font-weight:900;letter-spacing:-.01em;margin:0 0 10px;text-wrap:balance;line-height:1.25}
+  .sub{font-size:15px;color:var(--ink-2);margin:0;max-width:62ch}
+  .facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+  .fact{font-family:"JetBrains Mono",monospace;font-size:11.5px;padding:5px 11px;border:1px solid var(--rule-2);border-radius:999px;color:var(--ink-2);background:var(--surface-2)}
+
+  /* ---- toc ---- */
+  nav.toc{position:sticky;top:24px;padding:30px 0 40px;font-size:13px}
+  @media(max-width:960px){nav.toc{position:static;padding:24px 0 6px;border-bottom:1px solid var(--rule)}}
+  nav.toc .lbl{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);margin-bottom:12px}
+  nav.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+  @media(max-width:960px){nav.toc ol{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:2px}}
+  nav.toc a{display:flex;gap:9px;padding:5px 9px;border-radius:7px;text-decoration:none;color:var(--ink-2);border-left:2px solid transparent}
+  nav.toc a:hover{background:var(--surface);color:var(--accent);border-left-color:var(--accent)}
+  nav.toc a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  nav.toc .n{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--ink-3);flex:none;padding-top:1px}
+
+  /* ---- content ---- */
+  main{padding:30px 0 90px;min-width:0}
+  section{scroll-margin-top:20px;padding-bottom:14px}
+  section+section{margin-top:52px;padding-top:44px;border-top:1px solid var(--rule)}
+  h2{font-size:23px;font-weight:900;margin:0 0 6px;letter-spacing:-.005em;display:flex;gap:13px;align-items:baseline;text-wrap:balance}
+  h2 .n{font-family:"JetBrains Mono",monospace;font-size:13px;font-weight:700;color:var(--accent);flex:none}
+  h3{font-size:16px;font-weight:700;margin:32px 0 8px}
+  p{margin:0 0 14px;max-width:74ch}
+  .lede{color:var(--ink-2);margin-bottom:24px;max-width:74ch}
+  a{color:var(--accent)}
+  strong{font-weight:700}
+  ul,ol.steps{margin:0 0 16px;padding-left:20px;max-width:74ch}
+  li{margin-bottom:7px}
+
+  kbd{font-family:"JetBrains Mono",monospace;font-size:12px;background:var(--surface-2);border:1px solid var(--rule-2);border-bottom-width:2px;border-radius:5px;padding:1px 6px}
+  .dim{color:var(--timber);font-weight:700;white-space:nowrap}
+  code{background:var(--surface-2);border:1px solid var(--rule);padding:1px 6px;border-radius:5px;font-size:12.5px}
+
+  /* ---- figures ---- */
+  figure{margin:22px 0 26px}
+  figure img{width:100%;display:block;border:1px solid var(--rule-2);border-radius:10px;background:var(--surface)}
+  figure.plain img{border-radius:6px}
+  figcaption{font-size:12.5px;color:var(--ink-3);margin-top:9px;line-height:1.6;max-width:74ch}
+  figcaption b{color:var(--ink-2);font-weight:700}
+  .fig-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:22px 0 26px}
+  @media(max-width:760px){.fig-2{grid-template-columns:1fr}}
+  .fig-2 figure{margin:0}
+
+  /* ---- tables ---- */
+  .tw{overflow-x:auto;margin:18px 0 22px;border:1px solid var(--rule);border-radius:10px;background:var(--surface)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px}
+  th,td{padding:9px 14px;text-align:left;border-bottom:1px solid var(--rule)}
+  th{background:var(--surface-2);font-weight:700;font-size:11.5px;letter-spacing:.05em;color:var(--ink-2);white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  td.num,th.num{text-align:right;font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tbody tr:hover{background:var(--surface-2)}
+
+  /* ---- case blocks: 输入 → 结果 → 怎么读 ---- */
+  .case{border:1px solid var(--rule-2);border-radius:14px;background:var(--surface);box-shadow:var(--shadow);overflow:hidden;margin:26px 0}
+  .case-hd{padding:16px 22px;border-bottom:1px solid var(--rule);background:var(--surface-2)}
+  .case-hd .tag{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+  .case-hd h3{margin:5px 0 0;font-size:17px}
+  .case-bd{padding:20px 22px 6px}
+  .beat{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin:20px 0 8px;padding-bottom:5px;border-bottom:1px dashed var(--rule-2)}
+  .case-bd>.beat:first-child{margin-top:0}
+
+  /* ---- callouts ---- */
+  .note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:13px 17px;border-radius:0 9px 9px 0;margin:18px 0;font-size:14px}
+  .note.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+  .note.ok{border-left-color:var(--ok);background:var(--ok-soft)}
+  .note p:last-child{margin-bottom:0}
+  .note .t{font-weight:700;display:block;margin-bottom:3px}
+
+  /* ---- key-value spec strip ---- */
+  .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:10px;overflow:hidden;margin:16px 0 22px}
+  .kv div{background:var(--surface);padding:11px 14px}
+  .kv dt{font-size:11px;color:var(--ink-3);margin-bottom:3px}
+  .kv dd{margin:0;font-family:"JetBrains Mono",monospace;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+  .kv dd small{font-size:11px;font-weight:400;color:var(--ink-3);margin-left:2px}
+
+  /* ---- faq ---- */
+  details{border:1px solid var(--rule);border-radius:10px;background:var(--surface);margin-bottom:9px;overflow:hidden}
+  summary{padding:13px 17px;cursor:pointer;font-weight:700;font-size:14.5px;list-style:none;display:flex;gap:10px;align-items:baseline}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"？";font-family:"JetBrains Mono",monospace;color:var(--accent);font-size:13px;flex:none}
+  summary:hover{background:var(--surface-2)}
+  summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  details[open] summary{border-bottom:1px solid var(--rule)}
+  details .body{padding:14px 17px 4px}
+  details .body p{max-width:none}
+
+  footer{border-top:1px solid var(--rule);margin-top:60px;padding:26px 0 40px;font-size:12.5px;color:var(--ink-3)}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<header class="top">
+  <div class="top-in">
+    <p class="eyebrow">操作手册 · v9.4</p>
+    <h1>智装装箱 Pro 操作手册</h1>
+    <p class="sub">面向出口木箱与集装箱装载的三维排布工具。本手册用三个真实案例串起全部功能——从 Excel 粘贴到开料下单。</p>
+    <div class="facts">
+      <span class="fact">单文件离线运行</span>
+      <span class="fact">零外部依赖</span>
+      <span class="fact">双模：装柜 / 打包</span>
+      <span class="fact">开料清单含展开图</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="toc">
+    <div class="lbl">目录</div>
+    <ol>
+      <li><a href="#s1"><span class="n">01</span>它解决什么问题</a></li>
+      <li><a href="#s2"><span class="n">02</span>五分钟上手</a></li>
+      <li><a href="#s3"><span class="n">03</span>录入货物</a></li>
+      <li><a href="#s4"><span class="n">04</span>案例一 · 装柜比选</a></li>
+      <li><a href="#s5"><span class="n">05</span>案例二 · 高低平板车</a></li>
+      <li><a href="#s6"><span class="n">06</span>案例三 · 薄板分箱</a></li>
+      <li><a href="#s7"><span class="n">07</span>开料清单</a></li>
+      <li><a href="#s8"><span class="n">08</span>重心与吊装</a></li>
+      <li><a href="#s9"><span class="n">09</span>规格库</a></li>
+      <li><a href="#s10"><span class="n">10</span>导出与存档</a></li>
+      <li><a href="#s11"><span class="n">11</span>参数速查</a></li>
+      <li><a href="#s12"><span class="n">12</span>常见问题</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <section id="s1">
+      <h2><span class="n">01</span>它解决什么问题</h2>
+      <p class="lede">同一份货物清单，两个方向的问题，一个工具。</p>
+      <p><strong>货柜装车模式</strong>解决“货已定，容器已定，怎么装得下”：把货物排进已有的集装箱或货车，比选用哪种柜型最划算。单位 <span class="dim">cm</span>。</p>
+      <p><strong>纸箱/木箱打包模式</strong>解决反过来的问题——“货已定，箱子做多大”：为货物反向求解出一只尽量小的外包装箱，并直接给出木板的下料尺寸。单位 <span class="dim">mm</span>。</p>
+      <p>两种模式共用同一份货物清单，切换时尺寸自动在 cm 与 mm 之间换算，不会丢数据。</p>
+
+      <figure>
+        <img src="img/01-start.png" alt="软件主界面：左侧参数与货物清单，中部三维视图，右侧结果面板">
+        <figcaption>主界面三栏布局。<b>左栏</b>自上而下是工艺参数、货物清单、规格库；<b>中部</b>是三维视图与方案卡片；<b>右栏</b>是求解结果、开料清单与重心安全提示。</figcaption>
+      </figure>
+
+      <div class="note">
+        <span class="t">首次打开会自动引导</span>
+        <p>第一次打开时会弹出功能导览，逐步指出各区域的用途。看过一次后不再自动弹出；随时可以点顶部的<strong>「导览」</strong>重看。</p>
+      </div>
+      <figure>
+        <img src="img/10-tour.png" alt="首次打开时的功能导览气泡，正指向模式切换按钮">
+        <figcaption>功能导览会随当前状态调整：解算出结果后再看，会多出方案卡片、三维视图、开料清单等步骤。</figcaption>
+      </figure>
+    </section>
+
+    <section id="s2">
+      <h2><span class="n">02</span>五分钟上手</h2>
+      <ol class="steps">
+        <li><strong>选模式</strong>——顶部切换「货柜装车」或「纸箱/木箱打包」。</li>
+        <li><strong>录货物</strong>——从 Excel 复制整列，在页面上按 <kbd>Ctrl</kbd>+<kbd>V</kbd>。</li>
+        <li><strong>设限值</strong>——展开「工艺装载参数」，设最大长宽高、防护层厚度、堆叠策略。折叠状态下右侧也能看到当前限值。</li>
+        <li><strong>选规格</strong>——左下勾选备选柜型/箱型，可多选让系统比选。</li>
+        <li><strong>开始求解</strong>——点蓝色按钮，等进度环走完。</li>
+      </ol>
+      <p>求解完成后，中部出现方案卡片和三维图，右栏出现推荐规格、开料清单与重心提示，底部出现逐件明细表。</p>
+    </section>
+
+    <section id="s3">
+      <h2><span class="n">03</span>录入货物</h2>
+      <p class="lede">逐条添加当然可以，但从 Excel 直接粘贴要快得多。</p>
+
+      <h3>智能粘贴</h3>
+      <p>复制 Excel 里的若干列，在页面任意位置按 <kbd>Ctrl</kbd>+<kbd>V</kbd>。解析引擎会先在每一行里找出<strong>尺寸列</strong>，再据此推断左右各列的含义：</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th>列位置</th><th>识别为</th><th>示例</th></tr></thead>
+          <tbody>
+            <tr><td>尺寸列前一列</td><td>工件代号</td><td><code>F9-1</code></td></tr>
+            <tr><td>尺寸列</td><td>长×宽×高</td><td><code>1131×80×80</code> 或 <code>1131*80*80</code></td></tr>
+            <tr><td>尺寸列后一列</td><td>单件重量 kg</td><td><code>12.5</code></td></tr>
+            <tr><td>再后一列</td><td>数量</td><td><code>18</code></td></tr>
+            <tr><td>再后一列</td><td>可否堆叠</td><td><code>否</code> / <code>N</code> / <code>0</code> 视为不可堆叠</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>也支持传统五列式：<code>长 | 宽 | 高 | 重量 | 数量</code>。分隔符可以是制表符或逗号。</p>
+
+      <div class="note warn">
+        <span class="t">粘贴时会问你「替换」还是「追加」</span>
+        <p>如果清单里已经有数据，粘贴后会弹出选择条。选<strong>替换</strong>清空重来，选<strong>追加</strong>并入现有清单。不选的话 6 秒后默认追加——所以如果发现件数比预期多，多半是之前的演示数据没清掉。</p>
+      </div>
+
+      <h3>防护层与打包模式</h3>
+      <p>打包模式下每件货物可以设独立的防护层厚度 <span class="dim">Lp / Wp / Hp</span>（长/宽/高三个方向的缓冲余量），也可以勾选「统一全局尺寸」一次设定。</p>
+      <p><strong>防护计算应用模式</strong>决定同规格件怎么合并：</p>
+      <ul>
+        <li><strong>每个</strong>——每件独立包裹，各自加一圈防护层。件数多时箱子会大不少。</li>
+        <li><strong>每类</strong>——同规格件先叠成一摞再整体包一层防护。<strong>这是省体积最有效的一项</strong>，薄板类尤其明显。</li>
+      </ul>
+    </section>
+
+    <section id="s4">
+      <h2><span class="n">04</span>案例一 · 装柜比选</h2>
+      <p class="lede">五种零件、57 件、4.1 吨，同时勾选 20GP / 40GP / 40HQ 让系统比选。</p>
+
+      <div class="case">
+        <div class="case-hd"><span class="tag">Case A</span><h3>混合零件装柜，系统自己挑柜型</h3></div>
+        <div class="case-bd">
+          <div class="beat">输入条件</div>
+          <div class="tw">
+            <table>
+              <thead><tr><th>代号</th><th class="num">长×宽×高 (cm)</th><th class="num">数量</th><th class="num">单重 kg</th><th>可堆叠</th></tr></thead>
+              <tbody>
+                <tr><td>机架</td><td class="num">150×90×110</td><td class="num">8</td><td class="num">120</td><td>是</td></tr>
+                <tr><td>电控柜</td><td class="num">80×60×60</td><td class="num">15</td><td class="num">45</td><td>是</td></tr>
+                <tr><td>底座</td><td class="num">210×110×130</td><td class="num">4</td><td class="num">350</td><td><b>否</b></td></tr>
+                <tr><td>盖板</td><td class="num">120×80×20</td><td class="num">20</td><td class="num">25</td><td>是</td></tr>
+                <tr><td>支架</td><td class="num">60×60×180</td><td class="num">10</td><td class="num">60</td><td>是</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="beat">求解结果</div>
+          <dl class="kv">
+            <div><dt>选中柜型</dt><dd>40GP</dd></div>
+            <div><dt>装载单元</dt><dd>1 <small>柜</small></dd></div>
+            <div><dt>空间利用率</dt><dd>56.9<small>%</small></dd></div>
+            <div><dt>装载件数</dt><dd>57 <small>/ 57</small></dd></div>
+            <div><dt>总重</dt><dd>4135 <small>kg</small></dd></div>
+          </dl>
+          <figure class="plain">
+            <img src="img/02-container-result.png" alt="40GP 集装箱内 57 件货物的三维排布结果">
+            <figcaption>底座标记为<b>不可堆叠</b>，所以始终贴地，上面不会压货。其余零件在其周围与上方填充。</figcaption>
+          </figure>
+
+          <div class="beat">怎么读</div>
+          <p>系统选了 <strong>40GP</strong> 而不是更高的 40HQ——两者都装得下，但 40GP 的成本指数更低（<span class="dim">1.55</span> vs <span class="dim">1.68</span>）。比选规则是：<strong>能一次装完的柜型优先，其中取成本最低者</strong>；都装不完时才转为「装得最多」，装载量相当（差 2% 以内）时仍比成本。</p>
+          <p>利用率 56.9% 看着不高，但这是<strong>正常的</strong>——异形件之间的空隙无法消除。要提高只能减少规格种类或允许更多件堆叠。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="s5">
+      <h2><span class="n">05</span>案例二 · 高低平板车</h2>
+      <p class="lede">17.5 米低平板车不是一个规整的长方体：鹅颈处地板抬高，后轮拱也抬高。区域约束就是描述这件事。</p>
+
+      <h3>三种区域类型</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>类型</th><th>含义</th><th>典型用途</th><th>需填</th></tr></thead>
+          <tbody>
+            <tr><td><b>禁装区</b></td><td>该段完全不可放货</td><td>轮拱、随车设备位</td><td>起点X / 终点X</td></tr>
+            <tr><td><b>抬高台</b></td><td>地板抬高，货必须落在台面上</td><td>鹅颈、后轮拱</td><td>+ 地板高</td></tr>
+            <tr><td><b>限高区</b></td><td>该段货顶不得超过某高度</td><td>鹅颈槽、风阻罩下方</td><td>+ 限高</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>区域沿<strong>车长方向</strong>分段，起点/终点用车头端起算的 X 坐标。可以直接套用预设：高低平板车、轮拱禁装、前部限高。</p>
+
+      <div class="case">
+        <div class="case-hd"><span class="tag">Case B</span><h3>17.5m 低平板车 + 鹅颈抬高台</h3></div>
+        <div class="case-bd">
+          <div class="beat">输入条件</div>
+          <div class="tw">
+            <table>
+              <thead><tr><th>区域</th><th>类型</th><th class="num">X 范围 (cm)</th><th class="num">地板高 (cm)</th></tr></thead>
+              <tbody>
+                <tr><td>鹅颈抬高台</td><td>抬高台</td><td class="num">0 – 350</td><td class="num">130</td></tr>
+                <tr><td>后轮拱抬高</td><td>抬高台</td><td class="num">1470 – 1750</td><td class="num">90</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <figure class="plain">
+            <img src="img/03-zones-panel.png" alt="车厢区域约束编辑面板，列出两条抬高台记录">
+            <figcaption>区域编辑面板。每行可改类型、起止 X、地板高与限高；右上下拉可一键套用预设。</figcaption>
+          </figure>
+
+          <div class="beat">求解结果</div>
+          <figure class="plain">
+            <img src="img/04-zones-3d.png" alt="三维视图中灰色实体台面表示抬高的鹅颈与后轮拱区段">
+            <figcaption>三维图里<b>灰色实体</b>是抬高台，货物落在台面上而非车板上；禁装区会显示为红色半透明体，限高区显示为琥珀色顶棚。</figcaption>
+          </figure>
+          <dl class="kv">
+            <div><dt>装载件数</dt><dd>57 <small>/ 57</small></dd></div>
+            <div><dt>落在台面上</dt><dd>6 <small>件</small></dd></div>
+            <div><dt>违规摆放</dt><dd>0</dd></div>
+          </dl>
+
+          <div class="beat">怎么读</div>
+          <p>只有 6 件落在抬高台上——这是<strong>对的</strong>。求解器优先把货放在低板区（重心更低、净空更高），低板装满了才用鹅颈台。这与实际装车顺序一致。</p>
+          <div class="note ok">
+            <p>利用率数字在有区域约束时会偏低（本例 24.5%），因为分母是车厢的整体长方体体积，而抬高台占掉的空间本来就装不了货。<strong>看装载件数和是否有未装载件更有意义。</strong></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="s6">
+      <h2><span class="n">06</span>案例三 · 薄板分箱</h2>
+      <p class="lede">252 张薄板，限值 1500×1800×600 装不下——系统自动开出四只箱，尾箱按余料定尺。</p>
+
+      <div class="case">
+        <div class="case-hd"><span class="tag">Case C</span><h3>18 种薄板 × 14 张，最小CBM 策略</h3></div>
+        <div class="case-bd">
+          <div class="beat">输入条件</div>
+          <dl class="kv">
+            <div><dt>规格种类</dt><dd>18</dd></div>
+            <div><dt>每种数量</dt><dd>14 <small>张</small></dd></div>
+            <div><dt>板厚</dt><dd>5 <small>mm</small></dd></div>
+            <div><dt>幅面范围</dt><dd>1390–1560<small>×790</small></dd></div>
+            <div><dt>防护层</dt><dd>40 <small>mm</small></dd></div>
+          </dl>
+          <p>关键设置：<strong>防护应用 = 每类</strong>（同规格 14 张先叠成一摞）、<strong>策略 = 最小CBM优化</strong>、限值 <span class="dim">1500×1800×600</span>、<strong>超限自动分箱 = 开</strong>。</p>
+
+          <div class="beat">求解结果</div>
+          <figure class="plain">
+            <img src="img/05-box-result.png" alt="打包模式解算结果：四只定制外箱，右栏显示开料清单">
+            <figcaption>右栏绿字提示<b>「已触发自动分箱：共 4 箱，每箱按其实际内容独立定尺」</b>。方案卡片可逐箱切换查看。</figcaption>
+          </figure>
+          <div class="tw">
+            <table>
+              <thead><tr><th>箱号</th><th class="num">外形 长×宽×高 (mm)</th><th class="num">体积 m³</th><th class="num">装载</th><th class="num">密实度</th></tr></thead>
+              <tbody>
+                <tr><td>#1</td><td class="num">860×1630×580</td><td class="num">0.813</td><td class="num">70 张</td><td class="num">58.3%</td></tr>
+                <tr><td>#2</td><td class="num">860×1580×580</td><td class="num">0.788</td><td class="num">70 张</td><td class="num">58.2%</td></tr>
+                <tr><td>#3</td><td class="num">860×1530×580</td><td class="num">0.763</td><td class="num">70 张</td><td class="num">58.1%</td></tr>
+                <tr><td>#4</td><td class="num">860×1480×360</td><td class="num">0.458</td><td class="num">42 张</td><td class="num">58.5%</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="beat">怎么读</div>
+          <p><strong>尾箱明显更小</strong>——0.458 m³ 对比首箱 0.813 m³。每只箱子都是按它<em>实际装了什么</em>反向定尺的，余料少就得小箱，不会为了统一而做四只一样大的箱子。</p>
+          <p>合计运输体积 <span class="dim">3.304 m³</span>（含 90mm 地脚托），用板 <span class="dim">20.18 m²</span>、约 16 张标准板，外箱自重约 257 kg。</p>
+          <div class="note warn">
+            <span class="t">把「超限自动分箱」关掉会怎样</span>
+            <p>同样这批货，关掉分箱后只出 1 只箱，<strong>13 个规格类装不下</strong>，全部进入未装载清单。分箱不是可有可无的开关——限值卡住时它决定货物是被装走还是被丢下。</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>四种堆叠策略怎么选</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>策略</th><th>行为</th><th>适合</th></tr></thead>
+          <tbody>
+            <tr><td><b>智能安全低重心</b></td><td>先铺满底面再往上堆</td><td>重货、需要低重心的场合</td></tr>
+            <tr><td><b>截面最紧凑</b></td><td>优先填满宽高，控制长度</td><td>长件、需要控制箱长</td></tr>
+            <tr><td><b>竖向叠装</b></td><td>强制往高处叠，底面积最小</td><td><b>薄板、同型面积件</b></td></tr>
+            <tr><td><b>最小CBM优化</b></td><td>多策略 + 多种分组反复比选，取总体积最小</td><td>拿不准时的默认选择</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>最小CBM 会尝试按体积、按厚度（薄板 vs 厚件）、按长径比（细长件 vs 方块件）等多种方式分组，评估分成两组装是否比一整箱更省，只有省下 4% 以上才采纳分组方案。</p>
+    </section>
+
+    <section id="s7">
+      <h2><span class="n">07</span>开料清单</h2>
+      <p class="lede">打包模式独有。给出六面板材的精确下料尺寸、地脚托规格与用板估算，可导出带展开图的 Excel。</p>
+
+      <h3>装配约定</h3>
+      <p>清单按一种明确的装配方式计算，<strong>侧板包端板、顶底盖四壁</strong>：</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th>部件</th><th class="num">数量</th><th>下料尺寸</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>顶板 / 底板</td><td class="num">各 1</td><td class="mono">L × W</td><td>盖住四壁上下口</td></tr>
+            <tr><td>侧板（长边）</td><td class="num">2</td><td class="mono">L × (H−2t)</td><td>夹在顶底之间</td></tr>
+            <tr><td>端板（短边）</td><td class="num">2</td><td class="mono">(W−2t) × (H−2t)</td><td>夹在两侧板之间</td></tr>
+            <tr><td>地脚托（底撬）</td><td class="num">3</td><td class="mono">W × 90 × 90</td><td>沿宽度铺，沿长度均布</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>其中 <code>t</code> 是板厚，<code>L/W/H</code> 是外箱外形尺寸。这套拼法正好闭合出净内腔 <code>(L−2t)×(W−2t)×(H−2t)</code>，软件会自动校验；万一对不上会在面板里红字告警。</p>
+
+      <div class="note">
+        <span class="t">地脚托为什么沿宽度方向铺</span>
+        <p>因为叉车是<strong>从长边进叉</strong>的。木方沿宽度铺、沿长度均布，叉臂通道正好与木方垂直，才插得进去。这也决定了地脚托的下料长度是 <code>W</code> 而不是 <code>L</code>。</p>
+      </div>
+
+      <figure class="plain">
+        <img src="img/06-cutlist.png" alt="右栏开料清单面板，逐行列出各部件尺寸与材料合计">
+        <figcaption>面板给出逐件下料尺寸、板材面积与材积、木方材积、<b>标准板 2440×1220 用板张数估算</b>、外箱自重估算。多箱时下方还会附全部箱体的合计用量。</figcaption>
+      </figure>
+
+      <h3>Excel 导出：带展开图</h3>
+      <p>点<strong>「Excel (含展开图)」</strong>导出的工作簿里，每只箱一个工作表，顺序是：六面展开图总览 → 逐片木板（该片在图上高亮）→ 地脚托单列 → 本箱小计，最后一个「汇总」表合计全部箱体。</p>
+      <div class="fig-2">
+        <figure><img src="img/07-net.png" alt="六面展开图，侧板A以琥珀色高亮">
+          <figcaption>展开图采用十字布局：底板居中，两侧板上下翻开，两端板左右翻开，顶板接在侧板外侧。当前这片<b>琥珀色高亮</b>，师傅照图下料不会拿错。</figcaption></figure>
+        <figure><img src="img/08-skid.png" alt="地脚托布置图，第二根高亮，标注叉车进叉方向">
+          <figcaption>地脚托单独一张布置图（底面俯视），标注了每根的位置与<b>叉车进叉方向</b>。</figcaption></figure>
+      </div>
+      <p>另有<strong>「CSV (纯数据)」</strong>导出，不带图，适合直接导进 ERP 或车间报表。CSV 带 UTF-8 BOM，Excel 打开中文不乱码。</p>
+    </section>
+
+    <section id="s8">
+      <h2><span class="n">08</span>重心与吊装</h2>
+      <p class="lede">解算完会同时算出三维重心，并据此给出叉车位与四个吊点。</p>
+      <ul>
+        <li><strong>重心球</strong>——三维图中的阴阳球，下方有垂线落到地面，标出重心在底面的投影位置。</li>
+        <li><strong>叉车位</strong>——两条琥珀色叉臂，从长边进叉。位置按重心对称展开，<strong>越界时会整体平移回箱内</strong>，不会给出叉不到的位置。</li>
+        <li><strong>吊点</strong>——四个吊环，同样保证落在箱体轮廓内。</li>
+      </ul>
+
+      <h3>两个安全判据</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>指标</th><th>算法</th><th>警戒线</th></tr></thead>
+          <tbody>
+            <tr><td>重心高度比</td><td>重心离地高度 ÷ 总高（<b>含 90mm 地脚托</b>）</td><td>&lt;45% 稳 · 45–55% 中等 · &gt;55% 警告</td></tr>
+            <tr><td>偏心率</td><td>重心偏离几何中心的距离 ÷ 对应边长</td><td>X 或 Y 任一 &gt;10% 判为严重偏心</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>严重偏心时会提示起吊前确保挂索对称；高重心时会建议在底盘加配重或降低堆叠高度。</p>
+    </section>
+
+    <section id="s9">
+      <h2><span class="n">09</span>规格库</h2>
+      <p class="lede">内置的柜型、车型、纸箱规格都可以改，也能加自己的。</p>
+      <figure class="plain">
+        <img src="img/09-speclib.png" alt="规格库编辑面板，逐行可改代号、长宽高、载重与成本指数">
+        <figcaption>点规格区右上的<b>「管理」</b>展开编辑。每行可改代号、长宽高、载重、成本指数；右侧 <b>×</b> 删除，底部可新增或恢复默认。</figcaption>
+      </figure>
+      <p><strong>成本指数</strong>是多柜比选的依据，以 20GP = <span class="dim">1.00</span> 为基准。填你自己的实际运价比例，系统就会按你的成本结构挑柜——而不是一律上大柜。</p>
+      <ul>
+        <li>修改会自动存在本浏览器，刷新不丢。</li>
+        <li>改代号时勾选状态会跟随，不会掉勾。</li>
+        <li>规格库可单独<strong>导入/导出</strong>成 JSON，方便在同事之间统一口径。</li>
+      </ul>
+    </section>
+
+    <section id="s10">
+      <h2><span class="n">10</span>导出与存档</h2>
+      <div class="tw">
+        <table>
+          <thead><tr><th>导出项</th><th>格式</th><th>内容</th></tr></thead>
+          <tbody>
+            <tr><td>装箱指导书</td><td>HTML</td><td>多柜/多箱汇总、逐件装载步骤图、重心与吊装安全提示，可直接打印</td></tr>
+            <tr><td>开料清单</td><td>XLSX</td><td>每箱一表：展开图 + 逐片高亮 + 地脚托 + 小计，末尾汇总表</td></tr>
+            <tr><td>开料清单</td><td>CSV</td><td>纯数据，带 UTF-8 BOM</td></tr>
+            <tr><td>整体配置</td><td>JSON</td><td>货物清单、区域约束、规格库、全部参数</td></tr>
+            <tr><td>规格库</td><td>JSON</td><td>仅柜型/车型/箱型规格</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        <span class="t">配置 JSON 是复现整个场景的凭据</span>
+        <p>导出后归档，下次导入即可完整还原：清单、限值、策略、区域、规格库、勾选状态。交接和复算都靠它。</p>
+      </div>
+    </section>
+
+    <section id="s11">
+      <h2><span class="n">11</span>参数速查</h2>
+      <div class="tw">
+        <table>
+          <thead><tr><th>参数</th><th>所在</th><th>默认</th><th>影响</th></tr></thead>
+          <tbody>
+            <tr><td>外包装壁板厚度</td><td>打包模式</td><td class="mono">15 mm</td><td>决定净内腔与板材下料尺寸</td></tr>
+            <tr><td>最大长/宽/高</td><td>打包模式</td><td class="mono">6000/2200/2200</td><td>超出即触发分箱</td></tr>
+            <tr><td>超限自动分箱</td><td>打包模式</td><td>开</td><td>关掉则超限货物进未装载清单</td></tr>
+            <tr><td>防护层 Lp/Wp/Hp</td><td>打包模式</td><td class="mono">40 mm</td><td>每件三向缓冲余量</td></tr>
+            <tr><td>防护应用模式</td><td>打包模式</td><td>每个</td><td>「每类」把同规格件先叠再包，最省体积</td></tr>
+            <tr><td>堆叠排布策略</td><td>两种模式</td><td>低重心</td><td>见 §06 策略对照表</td></tr>
+            <tr><td>预留绑扎间隙</td><td>货柜模式</td><td>关</td><td>开启后四周留 20cm</td></tr>
+            <tr><td>OT/FR 允许超高</td><td>货柜模式</td><td>关</td><td>开顶/框架柜放宽到 4m</td></tr>
+            <tr><td>车厢区域约束</td><td>货柜模式</td><td>无</td><td>禁装/抬高/限高分段</td></tr>
+            <tr><td>地脚托高度</td><td>打包模式</td><td class="mono">90 mm</td><td>固定值，计入运输外形与重心高度</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="s12">
+      <h2><span class="n">12</span>常见问题</h2>
+
+      <details open>
+        <summary>为什么明明货很多，却只出一只箱、不分箱？</summary>
+        <div class="body">
+          <p>分箱只在<strong>限值真的被卡住</strong>时才触发。默认最大长度是 6000mm，一般的货根本碰不到，自然就不分箱。</p>
+          <p>把「工艺装载参数」折叠条右侧的限值调小（比如改成 2400×2200×1200），或者展开面板确认「超限自动分箱」是开的。求解后右栏会明确写出原因：<em>「单箱方案 · 未触及限值 6000×2200×2200，如需分箱请调小限值」</em>。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>件数对不上，比我表格里的多</summary>
+        <div class="body">
+          <p>多半是粘贴时选了「追加」，把之前的演示数据并进来了。粘贴时会弹选择条，选<strong>替换</strong>即可；或先点顶部「清空」。</p>
+          <p>另外注意方案卡片上的数字是<strong>件数（类数）</strong>两个口径：<code>70件 (5类)</code> 表示 5 个规格类、合计 70 张。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>装载率只有 50% 多，是不是没算好？</summary>
+        <div class="body">
+          <p>不是。装载率 = 货物净体积 ÷ 容器内腔体积。异形件之间必然有空隙，混装 50–70% 是正常范围。</p>
+          <p>有区域约束时会更低（案例二只有 24.5%），因为抬高台占掉的空间算进了分母但本来就装不了货。<strong>更该关注的是「有没有未装载件」。</strong></p>
+          <p>真要提高：减少规格种类、允许更多件堆叠、打包模式下改用「每类」防护模式。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>薄板叠不起来，箱子铺得又平又大</summary>
+        <div class="body">
+          <p>换成<strong>「竖向叠装」</strong>策略。默认的低重心策略会优先把货铺满底面再往上堆，对薄板来说恰好相反——应该往高处叠，把底面积压到最小。</p>
+          <p>同时把「防护计算应用模式」设为<strong>「每类」</strong>，让同规格的板先叠成一摞。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>开料清单能直接给车间下料吗？</summary>
+        <div class="body">
+          <p>可以。清单给的是<strong>精确下料尺寸</strong>，已经按「侧板包端板、顶底盖四壁」的装配关系扣减过板厚，拼起来正好是解算出的净内腔，软件每次都会自动校验闭合性。</p>
+          <p>建议导出 Excel 版给师傅——每片木板在展开图上高亮，不容易拿错。用板张数是按 2440×1220 直裁估算的，实际排版可能更省。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>装柜模式为什么没有开料清单？</summary>
+        <div class="body">
+          <p>集装箱和货车是<strong>既有的运输工具</strong>，不是要开料制作的东西，没有板材可下。开料清单只在打包模式出现，因为那时系统是在<em>设计一只木箱</em>。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>能离线用吗？会不会传数据出去？</summary>
+        <div class="body">
+          <p>可以完全离线。整个工具是<strong>单个 HTML 文件</strong>，三维引擎、Excel 引擎、图标、样式全部内嵌，运行时<strong>零外部网络请求</strong>。双击就能开，数据不出本机。</p>
+          <p>规格库和「导览已看过」标记存在浏览器本地，换浏览器或清了站点数据会恢复默认。</p>
+        </div>
+      </details>
+    </section>
+
+    <footer>
+      智装装箱 Pro v9.4 · 操作手册　|　文中所有截图与数据均取自实际解算结果
+    </footer>
+  </main>
+</div>
