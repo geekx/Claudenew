@@ -1690,7 +1690,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
             <!-- 柜型/箱体选择区 -->
             <div class="p-4 bg-slate-50 border-t shrink-0 h-48 overflow-y-auto">
-                <h2 id="specSectionTitle" class="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><i data-lucide="truck" size="14"></i> 备选装运容器</h2>
+                <div class="flex items-center justify-between mb-3">
+                    <h2 id="specSectionTitle" class="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><i data-lucide="truck" size="14"></i> 备选装运容器</h2>
+                    <div class="flex items-center gap-1">
+                        <button onclick="toggleSpecEditor()" title="管理规格" class="md3e-btn text-slate-400 hover:text-blue-600 hover:bg-white px-1.5 py-1 flex items-center gap-1 text-[10px] font-bold"><i data-lucide="settings-2" size="12"></i> 管理</button>
+                        <button onclick="triggerImportSpecs()" title="导入规格库" class="md3e-btn text-slate-400 hover:text-blue-600 hover:bg-white px-1.5 py-1"><i data-lucide="folder-input" size="12"></i></button>
+                        <button onclick="exportSpecs()" title="导出规格库" class="md3e-btn text-slate-400 hover:text-blue-600 hover:bg-white px-1.5 py-1"><i data-lucide="folder-output" size="12"></i></button>
+                    </div>
+                </div>
+                <div id="specEditor" class="hidden mb-3"></div>
                 <div id="containerList" class="space-y-1.5">
                     <!-- 动态生成 -->
                 </div>
@@ -1807,6 +1815,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     </div>
 
     <!-- 配置导入用隐藏文件选择器 -->
+    <input type="file" id="specFileInput" accept=".json,application/json" class="hidden" onchange="handleSpecFile(this)">
     <input type="file" id="configFileInput" accept=".json,application/json" class="hidden" onchange="handleConfigFile(this)">
 
     <script>
@@ -1885,7 +1894,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         let currentMode = 'container'; // 'container' | 'box'
 
         // cost: 相对成本指数（用于多柜/多车方案比选，20GP 基准 = 1.0）
-        const CONTAINER_SPECS = [
+        const DEFAULT_CONTAINER_SPECS = [
             { id: '20GP', name: "20' 标准干货集装箱 (GP)", l: 589.8, w: 235.2, h: 239.3, maxWeight: 28200, type: 'dry', cost: 1.00 },
             { id: '40GP', name: "40' 标准干货集装箱 (GP)", l: 1203.2, w: 235.2, h: 239.3, maxWeight: 28800, type: 'dry', cost: 1.55 },
             { id: '40HQ', name: "40' 超高干货集装箱 (HQ)", l: 1203.2, w: 235.2, h: 269.8, maxWeight: 28600, type: 'dry', cost: 1.68 },
@@ -1898,7 +1907,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         ];
 
         // 纸箱/木箱中国标准规格预设 (mm)
-        const STANDARD_CARTON_SPECS = [
+        const DEFAULT_CARTON_SPECS = [
             { id: 'POST-1', name: "1号 特大邮政纸箱", l: 530, w: 290, h: 370, maxWeight: 50, type: 'box' },
             { id: 'POST-2', name: "2号 大号邮政纸箱", l: 500, w: 400, h: 300, maxWeight: 40, type: 'box' },
             { id: 'POST-3', name: "3号 中大邮政纸箱", l: 430, w: 350, h: 250, maxWeight: 30, type: 'box' },
@@ -1907,6 +1916,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             { id: 'WOOD-M1', name: "特制中型木板包装箱", l: 1200, w: 800, h: 800, maxWeight: 500, type: 'wood' },
             { id: 'WOOD-M2', name: "特制大型木托板装箱", l: 2000, w: 1200, h: 1200, maxWeight: 1500, type: 'wood' }
         ];
+
+        // 运行期规格库：由内置默认值克隆而来，可增删改并留存于浏览器
+        const CONTAINER_SPECS = DEFAULT_CONTAINER_SPECS.map(o => ({ ...o }));
+        const STANDARD_CARTON_SPECS = DEFAULT_CARTON_SPECS.map(o => ({ ...o }));
 
         let cargoList = [];
         let resultData = { results: [], unpacked: [] };
@@ -2042,6 +2055,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
                 loadZones: loadZones.map(z => ({ ...z })),
                 selectedContainers: [...selectedContainers],
                 selectedBoxes: [...selectedBoxes],
+                specLib: { containers: CONTAINER_SPECS.map(o => ({ ...o })), boxes: STANDARD_CARTON_SPECS.map(o => ({ ...o })) },
                 settings: {
                     lashingGap: g('lashingGap'), allowOverHeight: g('allowOverHeight'),
                     wallThickness: g('wallThickness'), packTarget: g('packTarget'),
@@ -2127,6 +2141,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             }
             if (Array.isArray(cfg.loadZones)) {
                 loadZones = cfg.loadZones.map(z => ({ ...z, id: zoneIdSeq++ }));
+            }
+            if (cfg.specLib) {
+                if (Array.isArray(cfg.specLib.containers) && cfg.specLib.containers.length) {
+                    CONTAINER_SPECS.length = 0; cfg.specLib.containers.forEach(o => CONTAINER_SPECS.push({ ...o }));
+                }
+                if (Array.isArray(cfg.specLib.boxes) && cfg.specLib.boxes.length) {
+                    STANDARD_CARTON_SPECS.length = 0; cfg.specLib.boxes.forEach(o => STANDARD_CARTON_SPECS.push({ ...o }));
+                }
+                persistSpecs();
             }
             if (Array.isArray(cfg.selectedContainers) && cfg.selectedContainers.length) selectedContainers = [...cfg.selectedContainers];
             if (Array.isArray(cfg.selectedBoxes) && cfg.selectedBoxes.length) selectedBoxes = [...cfg.selectedBoxes];
@@ -2285,6 +2308,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             renderContainerList();
             renderCargoList();
             renderZoneList();
+            renderSpecEditor();
             updateSettingsSummary();
             clearScene();
             lucide.createIcons();
@@ -2335,6 +2359,198 @@ https://github.com/nodeca/pako/blob/main/LICENSE
                 addCargoRow({ name: 'F9-1', l: 800, w: 400, h: 500, qty: 1, weight: 650, stackable: false, lp: 100, wp: 100, hp: 80 });
             }
             renderCargoList();
+        }
+
+        // ============================================================
+        //  柜型 / 车型 / 箱型规格库：可增删改 + 导入导出 + 本地留存
+        // ============================================================
+        const SPEC_STORE_KEY = 'zzzx.specLib.v1';
+
+        /** 当前模式对应的规格数组（直接返回引用，便于增删改） */
+        function activeSpecs() {
+            return currentMode === 'container' ? CONTAINER_SPECS : STANDARD_CARTON_SPECS;
+        }
+        function activeUnit() { return currentMode === 'container' ? 'cm' : 'mm'; }
+
+        function persistSpecs() {
+            try {
+                localStorage.setItem(SPEC_STORE_KEY, JSON.stringify({
+                    containers: CONTAINER_SPECS, boxes: STANDARD_CARTON_SPECS
+                }));
+            } catch (e) { /* 隐私模式/配额不可用时静默降级，不影响本次会话 */ }
+        }
+
+        function restoreSpecs() {
+            let raw = null;
+            try { raw = localStorage.getItem(SPEC_STORE_KEY); } catch (e) { return; }
+            if (!raw) return;
+            try {
+                const d = JSON.parse(raw);
+                if (Array.isArray(d.containers) && d.containers.length) {
+                    CONTAINER_SPECS.length = 0; d.containers.forEach(s => CONTAINER_SPECS.push(s));
+                }
+                if (Array.isArray(d.boxes) && d.boxes.length) {
+                    STANDARD_CARTON_SPECS.length = 0; d.boxes.forEach(s => STANDARD_CARTON_SPECS.push(s));
+                }
+            } catch (e) { /* 存档损坏则沿用内置规格 */ }
+        }
+
+        function toggleSpecEditor() {
+            const el = document.getElementById('specEditor');
+            const open = !el.classList.contains('hidden');
+            el.classList.toggle('hidden', open);
+            if (!open) renderSpecEditor();
+        }
+
+        function renderSpecEditor() {
+            const el = document.getElementById('specEditor');
+            if (!el || el.classList.contains('hidden')) return;
+            const specs = activeSpecs();
+            const u = activeUnit();
+            const isC = currentMode === 'container';
+
+            el.innerHTML = `
+                <div class="bg-white border border-slate-200 rounded-xl p-2 space-y-1.5">
+                    <div class="grid grid-cols-[1fr_46px_46px_46px_52px_40px_20px] gap-1 text-[8px] font-black text-slate-400 uppercase px-0.5">
+                        <span>代号/名称</span><span class="text-center">长${u}</span><span class="text-center">宽${u}</span><span class="text-center">高${u}</span><span class="text-center">载重kg</span><span class="text-center">成本</span><span></span>
+                    </div>
+                    ${specs.map((s, i) => `
+                        <div class="grid grid-cols-[1fr_46px_46px_46px_52px_40px_20px] gap-1 items-center">
+                            <input value="${(s.id || '').replace(/"/g, '&quot;')}" onchange="updateSpec(${i},'id',this.value)" class="text-[10px] font-bold bg-slate-50 rounded px-1 py-0.5 border border-slate-100 outline-none">
+                            <input type="number" value="${s.l}" onchange="updateSpec(${i},'l',this.value)" class="text-[10px] font-mono text-center bg-slate-50 rounded px-0.5 py-0.5 border border-slate-100 outline-none">
+                            <input type="number" value="${s.w}" onchange="updateSpec(${i},'w',this.value)" class="text-[10px] font-mono text-center bg-slate-50 rounded px-0.5 py-0.5 border border-slate-100 outline-none">
+                            <input type="number" value="${s.h}" onchange="updateSpec(${i},'h',this.value)" class="text-[10px] font-mono text-center bg-slate-50 rounded px-0.5 py-0.5 border border-slate-100 outline-none">
+                            <input type="number" value="${s.maxWeight}" onchange="updateSpec(${i},'maxWeight',this.value)" class="text-[10px] font-mono text-center bg-slate-50 rounded px-0.5 py-0.5 border border-slate-100 outline-none">
+                            <input type="number" step="0.05" value="${s.cost != null ? s.cost : 1}" onchange="updateSpec(${i},'cost',this.value)" class="text-[10px] font-mono text-center bg-slate-50 rounded px-0.5 py-0.5 border border-slate-100 outline-none" ${isC ? '' : 'disabled'}>
+                            <button onclick="removeSpec(${i})" class="text-red-400 hover:text-red-600 flex justify-center"><i data-lucide="x" size="11"></i></button>
+                        </div>`).join('')}
+                    <div class="flex gap-1 pt-1">
+                        <button onclick="addSpec()" class="md3e-btn flex-1 py-1 border-2 border-dashed border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-300 text-[10px] font-bold flex items-center justify-center gap-1"><i data-lucide="plus" size="10"></i> 新增规格</button>
+                        <button onclick="resetSpecs()" class="md3e-btn py-1 px-2 text-slate-400 hover:text-red-500 text-[10px] font-bold" title="恢复内置规格">恢复默认</button>
+                    </div>
+                    <div class="text-[8px] text-slate-400 leading-snug pt-0.5">
+                        ${isC ? '成本为相对指数（20GP=1.00），多柜比选时用于挑选更省成本的组合。' : '纸箱/木箱规格用于「适配标准外箱」目标。'}
+                        尺寸单位 ${u}，修改后自动保存到本浏览器。
+                    </div>
+                </div>`;
+            lucide.createIcons();
+        }
+
+        function updateSpec(idx, field, val) {
+            const s = activeSpecs()[idx];
+            if (!s) return;
+            if (field === 'id') {
+                const v = String(val).trim();
+                if (!v) { renderSpecEditor(); return; }
+                const old = s.id;
+                s.id = v;
+                if (!s.name || s.name === old) s.name = v;
+                // 选中集合跟随改名，避免勾选状态丢失
+                selectedContainers = selectedContainers.map(x => x === old ? v : x);
+                selectedBoxes = selectedBoxes.map(x => x === old ? v : x);
+            } else {
+                const n = parseFloat(val);
+                s[field] = isNaN(n) ? s[field] : Math.max(field === 'cost' ? 0 : 1, n);
+            }
+            persistSpecs();
+            renderContainerList();
+            renderSpecEditor();
+        }
+
+        function addSpec() {
+            const isC = currentMode === 'container';
+            const base = isC
+                ? { id: '自定义柜', name: '自定义柜型', l: 600, w: 235, h: 239, maxWeight: 25000, type: 'dry', cost: 1.0 }
+                : { id: '自定义箱', name: '自定义箱型', l: 600, w: 400, h: 400, maxWeight: 50, type: 'wood' };
+            // 代号去重
+            let n = 1, id = base.id;
+            while (activeSpecs().some(s => s.id === id)) id = base.id + (++n);
+            base.id = id; base.name = id;
+            activeSpecs().push(base);
+            persistSpecs();
+            renderContainerList();
+            renderSpecEditor();
+        }
+
+        function removeSpec(idx) {
+            const specs = activeSpecs();
+            if (specs.length <= 1) { showPasteToast('至少保留一条规格'); return; }
+            const [gone] = specs.splice(idx, 1);
+            selectedContainers = selectedContainers.filter(x => x !== gone.id);
+            selectedBoxes = selectedBoxes.filter(x => x !== gone.id);
+            if (currentMode === 'container' && !selectedContainers.length) selectedContainers.push(specs[0].id);
+            if (currentMode === 'box' && !selectedBoxes.length) selectedBoxes.push(specs[0].id);
+            persistSpecs();
+            renderContainerList();
+            renderSpecEditor();
+        }
+
+        function resetSpecs() {
+            if (currentMode === 'container') {
+                CONTAINER_SPECS.length = 0; DEFAULT_CONTAINER_SPECS.forEach(s => CONTAINER_SPECS.push({ ...s }));
+                selectedContainers = ['40HQ'];
+            } else {
+                STANDARD_CARTON_SPECS.length = 0; DEFAULT_CARTON_SPECS.forEach(s => STANDARD_CARTON_SPECS.push({ ...s }));
+                selectedBoxes = ['POST-2', 'WOOD-M1'];
+            }
+            persistSpecs();
+            renderContainerList();
+            renderSpecEditor();
+            showPasteToast('已恢复内置规格');
+        }
+
+        function exportSpecs() {
+            const data = {
+                app: '智装装箱 Pro', kind: 'specLib', version: 1,
+                savedAt: new Date().toISOString(),
+                containers: CONTAINER_SPECS, boxes: STANDARD_CARTON_SPECS
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `装运规格库_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 100);
+            showPasteToast(`已导出规格库 · ${CONTAINER_SPECS.length} 柜型 / ${STANDARD_CARTON_SPECS.length} 箱型`);
+        }
+
+        function triggerImportSpecs() { document.getElementById('specFileInput').click(); }
+
+        function handleSpecFile(input) {
+            const file = input.files && input.files[0];
+            input.value = '';
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onerror = () => showPasteToast('❌ 文件读取失败');
+            reader.onload = e => {
+                let d;
+                try { d = JSON.parse(e.target.result); }
+                catch (err) { showPasteToast('❌ 规格库文件不是有效 JSON'); return; }
+                const okRow = s => s && typeof s === 'object' && s.id &&
+                    [s.l, s.w, s.h].every(v => typeof v === 'number' && v > 0);
+                const cs = Array.isArray(d.containers) ? d.containers.filter(okRow) : [];
+                const bs = Array.isArray(d.boxes) ? d.boxes.filter(okRow) : [];
+                if (!cs.length && !bs.length) { showPasteToast('❌ 文件中没有可用的规格条目'); return; }
+
+                if (cs.length) {
+                    CONTAINER_SPECS.length = 0;
+                    cs.forEach(s => CONTAINER_SPECS.push({ type: 'dry', cost: 1, maxWeight: 25000, name: s.id, ...s }));
+                    selectedContainers = selectedContainers.filter(x => CONTAINER_SPECS.some(s => s.id === x));
+                    if (!selectedContainers.length) selectedContainers = [CONTAINER_SPECS[0].id];
+                }
+                if (bs.length) {
+                    STANDARD_CARTON_SPECS.length = 0;
+                    bs.forEach(s => STANDARD_CARTON_SPECS.push({ type: 'wood', maxWeight: 50, name: s.id, ...s }));
+                    selectedBoxes = selectedBoxes.filter(x => STANDARD_CARTON_SPECS.some(s => s.id === x));
+                    if (!selectedBoxes.length) selectedBoxes = [STANDARD_CARTON_SPECS[0].id];
+                }
+                persistSpecs();
+                renderContainerList();
+                renderSpecEditor();
+                showPasteToast(`✅ 已导入 ${cs.length} 柜型 / ${bs.length} 箱型`);
+            };
+            reader.readAsText(file);
         }
 
         function renderContainerList() {
@@ -5028,6 +5244,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         // --- 初始化基础数据 ---
         function init() {
             lucide.createIcons();
+            restoreSpecs();
             switchMode('container');
             renderZoneList();
             updateSettingsSummary();
