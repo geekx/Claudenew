@@ -20,7 +20,10 @@ css=open('tw.out.css',encoding='utf-8').read()
 print('rebuilt tailwind: %d KB' % (len(css)//1024))
 
 new_block='<style id="tailwind-inlined">/* Tailwind CSS v3.4.17 (MIT) — 已按本文件实际使用的类名裁剪 */\n'+css+'\n</style>'
-s2=re.sub(r'<style id="tailwind-inlined">.*?</style>', lambda m: new_block, s, count=1, flags=re.S)
-assert s2!=s, 'style block not replaced'
-open(HTML,'w',encoding='utf-8').write(s2)
-print('inlined. file: %d KB' % (len(s2.encode())//1024))
+s2, n = re.subn(r'<style id="tailwind-inlined">.*?</style>', lambda m: new_block, s, count=1, flags=re.S)
+assert n == 1, 'tailwind style block not found in HTML'
+if s2 == s:
+    print('CSS unchanged (no new utility classes) — file left as is')
+else:
+    open(HTML,'w',encoding='utf-8').write(s2)
+    print('inlined. file: %d KB' % (len(s2.encode())//1024))

@@ -1359,11 +1359,15 @@
       var def=ICONS[name];
       if(!def){ host.removeAttribute('data-lucide'); return; }   // 未知图标：静默跳过，不中断渲染
       var attrs={}; for(var k in def[1]) attrs[k]=def[1][k];
+      // 复制占位元素上的【全部】属性（id、class、data-*、aria-* 等），
+      // 与上游 lucide 行为一致 —— 否则带 id 的图标在渲染后会丢失 id
+      for(var i=0;i<host.attributes.length;i++){
+        var a=host.attributes[i];
+        if(a.name==='data-lucide'||a.name==='size') continue;
+        attrs[a.name]=a.value;
+      }
       var size=host.getAttribute('size')||host.getAttribute('width');
       if(size){ attrs.width=size; attrs.height=size; }
-      if(host.getAttribute('class')) attrs['class']=host.getAttribute('class');
-      if(host.getAttribute('fill')) attrs.fill=host.getAttribute('fill');
-      if(host.getAttribute('stroke-width')) attrs['stroke-width']=host.getAttribute('stroke-width');
       var svg=build('svg',attrs,def[2]);
       if(host.parentNode) host.parentNode.replaceChild(svg,host);
     });
@@ -1479,6 +1483,23 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         }
         .md3e-btn:hover  { border-radius: 30px; }
         .md3e-btn:active { transform: scale(.94); border-radius: 14px; }
+
+        /* 侧栏上下分栏拖拽条 */
+        .sidebar-split {
+            flex: 0 0 9px; height: 9px; position: relative; cursor: row-resize;
+            background: #f1f5f9; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;
+            touch-action: none; transition: background .15s ease;
+        }
+        .sidebar-split::after {
+            content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+            width: 36px; height: 3px; border-radius: 3px; background: #cbd5e1; transition: background .15s ease, width .2s var(--md3e-spring);
+        }
+        .sidebar-split:hover { background: #e8effc; }
+        .sidebar-split:hover::after { background: #60a5fa; width: 52px; }
+        .sidebar-split:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+        .sidebar-split.dragging { background: #dbeafe; }
+        .sidebar-split.dragging::after { background: #2563eb; width: 52px; }
+        body.split-dragging { cursor: row-resize; user-select: none; -webkit-user-select: none; }
 
         /* 功能导览气泡：与 MD3E 观感统一 */
         .driver-popover.zzzx-tour { border-radius: 20px; padding: 18px 20px; max-width: 380px; box-shadow: 0 18px 45px rgba(15,23,42,.22); }
@@ -1711,8 +1732,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
                 </div>
             </div>
 
+            <!-- 上下分栏拖拽条 -->
+            <div id="sidebarSplit" class="sidebar-split" role="separator" aria-orientation="horizontal"
+                 aria-label="拖动调整货物清单与规格区的高度比例" tabindex="0" title="拖动调整比例（双击复位）"
+                 onpointerdown="startSplitDrag(event)" onkeydown="splitKey(event)" ondblclick="resetSplit()"></div>
+
             <!-- 柜型/箱体选择区 -->
-            <div id="tourSpecs" class="p-4 bg-slate-50 border-t shrink-0 h-48 overflow-y-auto">
+            <div id="tourSpecs" class="p-4 bg-slate-50 shrink-0 h-48 overflow-y-auto">
                 <div class="flex items-center justify-between mb-3">
                     <h2 id="specSectionTitle" class="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><i data-lucide="truck" size="14"></i> 备选装运容器</h2>
                     <div class="flex items-center gap-1">
@@ -2252,6 +2278,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             const isOpen = !panel.classList.contains('hidden');
             panel.classList.toggle('hidden', isOpen);
             chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+            requestAnimationFrame(reclampSplit);
         }
 
         function switchMode(mode) {
@@ -5265,6 +5292,93 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         }
 
         // ============================================================
+        //  侧栏上下分栏：可拖拽调整货物清单与规格区的高度比例
+        // ============================================================
+        const SPLIT_KEY = 'zzzx.sidebarSplit.v1';
+        const SPLIT_MIN_SPECS = 96;    // 规格区最小高度
+        const SPLIT_MIN_CARGO = 140;   // 货物清单最小高度
+        const SPLIT_DEFAULT = 192;     // 等同原先的 h-48
+
+        /** 两个可变区段共享的总高度（设置面板收放会改变它） */
+        function splitCombined() {
+            const cargo = document.getElementById('tourCargo');
+            const specs = document.getElementById('tourSpecs');
+            if (!cargo || !specs) return 0;
+            return cargo.getBoundingClientRect().height + specs.getBoundingClientRect().height;
+        }
+
+        function applySplit(px, persist) {
+            const specs = document.getElementById('tourSpecs');
+            if (!specs) return;
+            const combined = splitCombined();
+            const max = Math.max(SPLIT_MIN_SPECS, combined - SPLIT_MIN_CARGO);
+            const h = Math.round(Math.min(max, Math.max(SPLIT_MIN_SPECS, px)));
+            specs.style.height = h + 'px';
+            specs.style.flex = '0 0 auto';
+            const bar = document.getElementById('sidebarSplit');
+            if (bar) {
+                bar.setAttribute('aria-valuenow', String(h));
+                bar.setAttribute('aria-valuemin', String(SPLIT_MIN_SPECS));
+                bar.setAttribute('aria-valuemax', String(Math.round(max)));
+            }
+            if (persist) { try { localStorage.setItem(SPLIT_KEY, String(h)); } catch (e) {} }
+        }
+
+        function startSplitDrag(e) {
+            const bar = document.getElementById('sidebarSplit');
+            const specs = document.getElementById('tourSpecs');
+            if (!bar || !specs) return;
+            e.preventDefault();
+            // 规格区底边固定不动，用它作为拖拽基准
+            const bottom = specs.getBoundingClientRect().bottom;
+            bar.classList.add('dragging');
+            document.body.classList.add('split-dragging');
+            try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+
+            const move = ev => applySplit(bottom - ev.clientY, false);
+            const up = ev => {
+                bar.classList.remove('dragging');
+                document.body.classList.remove('split-dragging');
+                try { bar.releasePointerCapture(e.pointerId); } catch (err) {}
+                bar.removeEventListener('pointermove', move);
+                bar.removeEventListener('pointerup', up);
+                bar.removeEventListener('pointercancel', up);
+                applySplit(bottom - ev.clientY, true);
+            };
+            bar.addEventListener('pointermove', move);
+            bar.addEventListener('pointerup', up);
+            bar.addEventListener('pointercancel', up);
+        }
+
+        /** 键盘可达：方向键微调，Home 复位 */
+        function splitKey(e) {
+            const specs = document.getElementById('tourSpecs');
+            if (!specs) return;
+            const cur = specs.getBoundingClientRect().height;
+            const step = e.shiftKey ? 48 : 16;
+            if (e.key === 'ArrowUp')        { applySplit(cur + step, true); e.preventDefault(); }
+            else if (e.key === 'ArrowDown') { applySplit(cur - step, true); e.preventDefault(); }
+            else if (e.key === 'Home')      { resetSplit(); e.preventDefault(); }
+        }
+
+        function resetSplit() {
+            applySplit(SPLIT_DEFAULT, true);
+        }
+
+        function restoreSplit() {
+            let v = null;
+            try { v = localStorage.getItem(SPLIT_KEY); } catch (e) {}
+            applySplit(v ? parseFloat(v) : SPLIT_DEFAULT, false);
+        }
+
+        // 窗口尺寸或设置面板收放后，重新夹紧到合法范围
+        function reclampSplit() {
+            const specs = document.getElementById('tourSpecs');
+            if (specs) applySplit(specs.getBoundingClientRect().height, false);
+        }
+        window.addEventListener('resize', reclampSplit);
+
+        // ============================================================
         //  首次打开功能导览 (driver.js)
         // ============================================================
         const TOUR_SEEN_KEY = 'zzzx.tourSeen.v1';
@@ -5351,6 +5465,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             lucide.createIcons();
             restoreSpecs();
             switchMode('container');
+            requestAnimationFrame(restoreSplit);
             maybeAutoTour();
             renderZoneList();
             updateSettingsSummary();
