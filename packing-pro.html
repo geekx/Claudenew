@@ -640,6 +640,7 @@
                     useGlobalPadding: g('useGlobalPadding'),
                     globalLp: g('globalLp'), globalWp: g('globalWp'), globalHp: g('globalHp'),
                     paddingScope: g('paddingScope'),
+                    maxLengthLimit: g('maxLengthLimit'), allowMultiCrate: g('allowMultiCrate'),
                     maxWidthLimit: g('maxWidthLimit'), maxHeightLimit: g('maxHeightLimit'),
                     packingStrategy: g('packingStrategy')
                 }
@@ -909,6 +910,8 @@
             document.getElementById('threeContainer').style.display = 'none';
             document.getElementById('tableContainer').style.display = 'none';
             document.getElementById('exportBtn').style.display = 'none';
+            // 场景隐藏时停掉渲染循环，避免后台空转耗电
+            if (typeof stopRenderLoop === 'function') stopRenderLoop();
         }
 
         // --- 加载演示数据 ---
@@ -1323,6 +1326,9 @@
 
         // --- 三维及吊装点、重心算法全局变量 ---
         let scene, camera, renderer, controls;
+        let renderLoopRAF = null;      // 唯一渲染循环句柄
+        let sceneDirty = true;         // 按需渲染标记
+        const textSpriteCache = new Map();   // 文字贴图缓存，键为「文本|前景|背景」
 
         // --- 极点计算与清理：EP Pruning 算法 ---
         function pruneEpsList(eps, newEP, newRot, packed) {
@@ -1905,25 +1911,35 @@
             const data = resultData.results[activeIdx];
             if (!data) return;
 
-            if (renderer) {
-                renderer.dispose();
+            // 复用 WebGL 上下文与渲染循环：
+            // 此前每次切换方案都新建 WebGLRenderer 并再起一个 rAF 循环，
+            // 旧循环从不停止 → N 次切换后每帧渲染 N 次，且 WebGL 上下文泄漏
+            // （浏览器上限约 16 个，超出后强制丢弃最旧上下文，画面卡死/变黑）。
+            if (!renderer || renderer.domElement.parentNode !== el) {
+                if (renderer) {
+                    renderer.dispose();
+                    if (renderer.forceContextLoss) renderer.forceContextLoss();
+                }
                 el.innerHTML = '';
+                renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                el.appendChild(renderer.domElement);
+                camera = new THREE.PerspectiveCamera(45, el.clientWidth / el.clientHeight, 1, 60000);
+                controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.05;
+                controls.addEventListener('change', () => { sceneDirty = true; });
             }
+            renderer.setSize(el.clientWidth, el.clientHeight);
+            camera.aspect = (el.clientWidth || 1) / (el.clientHeight || 1);
+            camera.updateProjectionMatrix();
+
+            // 释放上一场景占用的 GPU 资源，否则几何体/材质/贴图持续累积
+            if (scene) disposeSceneResources(scene);
 
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0xf8fafc); 
-            
-            camera = new THREE.PerspectiveCamera(45, el.clientWidth / el.clientHeight, 1, 60000);
-            
-            renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-            renderer.setSize(el.clientWidth, el.clientHeight);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            el.appendChild(renderer.domElement);
-
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
+            scene.background = new THREE.Color(0xf8fafc);
 
             scene.add(new THREE.AmbientLight(0xffffff, 0.75));
             const sunLight = new THREE.DirectionalLight(0xffffff, 0.45);
@@ -1969,12 +1985,13 @@
                 innerLine.computeLineDistances();
                 scene.add(innerLine);
 
-                // 地脚托：3根木方，跨度均匀分布于宽度方向
+                // 地脚托：3 根木方沿【宽度】方向铺设、沿长度均布，
+                // 使叉车通道与木方垂直（叉臂自长边进叉，见 render3DHandlingIndicators）
                 const skidMat = new THREE.MeshPhongMaterial({ color: 0x7c5c1e, shininess: 20 });
                 [0.15, 0.5, 0.85].forEach(frac => {
-                    const skidGeo = new THREE.BoxGeometry(l, SKID_H, 90);
+                    const skidGeo = new THREE.BoxGeometry(SKID_SECTION, SKID_H, w);
                     const skid = new THREE.Mesh(skidGeo, skidMat);
-                    skid.position.set(l / 2, SKID_H / 2, w * frac);
+                    skid.position.set(l * frac, SKID_H / 2, w / 2);
                     scene.add(skid);
                     const sEdge = new THREE.LineSegments(new THREE.EdgesGeometry(skidGeo), new THREE.LineBasicMaterial({ color: 0x4a3410 }));
                     sEdge.position.copy(skid.position);
@@ -2111,14 +2128,53 @@
 
             fitDimetricView(l, w, h + SKID_H, { margin: 1.12 });
 
-            const animate = () => {
-                requestAnimationFrame(animate);
-                controls.update();
-                renderer.render(scene, camera);
-            };
-            animate();
+            sceneDirty = true;
+            startRenderLoop();
 
             updateUI();
+        }
+
+        /**
+         * 单一渲染循环 + 按需渲染
+         * 只保留一个 rAF 循环（切换方案不再叠加），且仅在场景变动或
+         * 阻尼惯性未停止时才真正 render，静止时空转成本接近零。
+         */
+        function startRenderLoop() {
+            if (renderLoopRAF !== null) return;      // 已在运行，绝不重复启动
+            const tick = () => {
+                renderLoopRAF = requestAnimationFrame(tick);
+                if (!renderer || !scene || !camera) return;
+                const moving = controls ? controls.update() : false;
+                if (sceneDirty || moving) {
+                    renderer.render(scene, camera);
+                    sceneDirty = false;
+                }
+            };
+            renderLoopRAF = requestAnimationFrame(tick);
+        }
+
+        function stopRenderLoop() {
+            if (renderLoopRAF !== null) {
+                cancelAnimationFrame(renderLoopRAF);
+                renderLoopRAF = null;
+            }
+        }
+
+        /**
+         * 递归释放场景中的几何体、材质与贴图，避免重建场景时 GPU 资源泄漏
+         */
+        function disposeSceneResources(root) {
+            if (!root || !root.traverse) return;
+            root.traverse(obj => {
+                if (obj.geometry && obj.geometry.dispose) obj.geometry.dispose();
+                const mats = Array.isArray(obj.material) ? obj.material : (obj.material ? [obj.material] : []);
+                mats.forEach(m => {
+                    if (!m) return;
+                    // 文字贴图来自缓存，由缓存统一持有，不在此释放
+                    if (m.map && m.map.dispose && !m.map.__cached) m.map.dispose();
+                    if (m.dispose) m.dispose();
+                });
+            });
         }
 
         /**
@@ -2572,24 +2628,227 @@
             lucide.createIcons();
         }
 
+        // ============================================================
+        //  外箱开料清单 (Cut List)
+        // ============================================================
+        const SKID_H = 90;           // 地脚托高度 (mm)
+        const SKID_SECTION = 90;     // 地脚托断面宽 (mm)
+        const SHEET_L = 2440, SHEET_W = 1220;   // 标准胶合板幅面
+        const RHO_PLY = 600e-9;      // 胶合板密度 kg/mm³ (≈600 kg/m³)
+        const RHO_PINE = 500e-9;     // 松木方密度 kg/mm³ (≈500 kg/m³)
+
+        /**
+         * 生成单只外箱的开料清单
+         * 装配约定（侧板包端板，顶底盖住侧板）：
+         *   顶/底板  L × W                 —— 盖住四壁上下口
+         *   侧板×2   L × (H−2t)            —— 长边两片，夹在顶底之间
+         *   端板×2   (W−2t) × (H−2t)       —— 短边两片，夹在两侧板之间
+         * 由此闭合出净内腔 (L−2t) × (W−2t) × (H−2t)，与解算内尺寸一致。
+         * 地脚托沿宽度方向铺 3 根，沿长度均布，叉车自长边进叉。
+         */
+        function buildCutList(spec, wallThickness) {
+            const t = Math.max(1, wallThickness || 15);
+            const L = Math.round(spec.l), W = Math.round(spec.w), H = Math.round(spec.h);
+
+            const panels = [
+                { name: '顶板',        qty: 1, a: L,         b: W,         th: t, cat: 'ply' },
+                { name: '底板',        qty: 1, a: L,         b: W,         th: t, cat: 'ply' },
+                { name: '侧板 (长边)', qty: 2, a: L,         b: H - 2 * t, th: t, cat: 'ply' },
+                { name: '端板 (短边)', qty: 2, a: W - 2 * t, b: H - 2 * t, th: t, cat: 'ply' }
+            ].filter(p => p.a > 0 && p.b > 0);
+
+            const timber = [
+                { name: '地脚托 (底撬)', qty: 3, a: W, b: SKID_SECTION, th: SKID_H, cat: 'timber' }
+            ];
+
+            // 校验装配闭合性：拼出的净内腔必须等于解算内尺寸
+            const closure = {
+                innerL: L - 2 * t, innerW: W - 2 * t, innerH: H - 2 * t,
+                ok: (L - 2 * t) > 0 && (W - 2 * t) > 0 && (H - 2 * t) > 0
+            };
+
+            let plyArea = 0, plyVol = 0, timberVol = 0;
+            panels.forEach(p => { plyArea += p.qty * p.a * p.b; plyVol += p.qty * p.a * p.b * p.th; });
+            timber.forEach(p => { timberVol += p.qty * p.a * p.b * p.th; });
+
+            // 整张板估算：逐类做直裁排版（两种朝向取较优），再合计张数
+            const sheets = panels.reduce((sum, p) => {
+                const fit = (pa, pb) => Math.floor(SHEET_L / pa) * Math.floor(SHEET_W / pb);
+                const per = Math.max(fit(p.a, p.b), fit(p.b, p.a));
+                return sum + (per > 0 ? Math.ceil(p.qty / per) : p.qty);  // 超幅面则每片单独计
+            }, 0);
+            const oversize = panels.filter(p =>
+                Math.min(p.a, p.b) > SHEET_W || Math.max(p.a, p.b) > SHEET_L);
+
+            return {
+                panels, timber, closure, oversize,
+                plyArea, plyVol, timberVol, sheets,
+                weight: plyVol * RHO_PLY + timberVol * RHO_PINE,
+                outerH: H + SKID_H,
+                spec: { L, W, H, t }
+            };
+        }
+
+        /** 汇总全部外箱的开料用量（多箱方案） */
+        function aggregateCutLists() {
+            const rows = new Map();
+            let plyArea = 0, plyVol = 0, timberVol = 0, sheets = 0, weight = 0;
+            resultData.results.forEach(res => {
+                const cl = buildCutList(res.spec, res.wallThickness);
+                [...cl.panels, ...cl.timber].forEach(p => {
+                    const key = `${p.name}|${p.a}|${p.b}|${p.th}`;
+                    const prev = rows.get(key);
+                    if (prev) prev.qty += p.qty; else rows.set(key, { ...p });
+                });
+                plyArea += cl.plyArea; plyVol += cl.plyVol;
+                timberVol += cl.timberVol; sheets += cl.sheets; weight += cl.weight;
+            });
+            return { rows: [...rows.values()], plyArea, plyVol, timberVol, sheets, weight,
+                     crates: resultData.results.length };
+        }
+
+        /** 导出开料清单 CSV（含逐箱明细与总用量） */
+        function exportCutListCSV() {
+            if (!resultData.results.length) { showPasteToast('请先执行解算'); return; }
+            if (currentMode !== 'box') { showPasteToast('开料清单仅适用于打包装箱模式'); return; }
+
+            const lines = [];
+            const esc = v => `"${String(v).replace(/"/g, '""')}"`;
+            lines.push(['箱号', '外箱规格(mm)', '部件', '数量', '长(mm)', '宽(mm)', '厚(mm)', '单件面积(m²)', '小计面积(m²)', '材质'].map(esc).join(','));
+
+            resultData.results.forEach((res, i) => {
+                const cl = buildCutList(res.spec, res.wallThickness);
+                const dim = `${cl.spec.L}x${cl.spec.W}x${cl.outerH}`;
+                [...cl.panels, ...cl.timber].forEach(p => {
+                    const one = p.a * p.b / 1e6, sub = one * p.qty;
+                    lines.push([`#${i + 1}`, dim, p.name, p.qty, p.a, p.b, p.th,
+                                one.toFixed(4), sub.toFixed(4),
+                                p.cat === 'ply' ? '胶合板' : '松木方'].map(esc).join(','));
+                });
+            });
+
+            const agg = aggregateCutLists();
+            lines.push('');
+            lines.push([esc('总计'), esc(`${agg.crates} 只外箱`)].join(','));
+            lines.push([esc('板材面积(m²)'), esc((agg.plyArea / 1e6).toFixed(3))].join(','));
+            lines.push([esc('板材材积(m³)'), esc((agg.plyVol / 1e9).toFixed(4))].join(','));
+            lines.push([esc('木方材积(m³)'), esc((agg.timberVol / 1e9).toFixed(4))].join(','));
+            lines.push([esc(`标准板估算(${SHEET_L}×${SHEET_W})`), esc(agg.sheets + ' 张')].join(','));
+            lines.push([esc('外箱自重估算(kg)'), esc(agg.weight.toFixed(1))].join(','));
+
+            // BOM 头，保证 Excel 正确识别 UTF-8 中文
+            const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `外箱开料清单_${agg.crates}箱_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 100);
+            showPasteToast(`✅ 已导出 ${agg.crates} 只外箱的开料清单`);
+        }
+
+        /** 渲染当前外箱的开料清单面板（并在多箱时附总用量） */
+        function renderCutListPanel(data) {
+            const panel = document.getElementById('boxCutListPanel');
+            const body = document.getElementById('boxCutListBody');
+            if (!panel || !body) return;
+            panel.classList.remove('hidden');
+
+            const cl = buildCutList(data.spec, data.wallThickness);
+            const row = (p, accent) => {
+                const one = (p.a * p.b / 1e6);
+                return `<div class="flex items-baseline gap-1.5 border-b border-slate-100 py-0.5">
+                    <span class="w-[68px] shrink-0 ${accent ? 'text-amber-700' : 'text-slate-500'}">${p.name}</span>
+                    <span class="text-slate-400 shrink-0">×${p.qty}</span>
+                    <span class="flex-1 font-bold text-slate-800 text-right">${p.a}<span class="text-slate-300 font-normal">×</span>${p.b}<span class="text-slate-300 font-normal">×</span>${p.th}</span>
+                    <span class="text-slate-400 text-[9px] shrink-0 w-12 text-right">${(one * p.qty).toFixed(2)}m²</span>
+                </div>`;
+            };
+
+            let html = `<div class="flex items-baseline gap-1.5 text-[9px] text-slate-400 font-bold pb-1">
+                    <span class="w-[68px] shrink-0">部件</span><span class="shrink-0">数量</span>
+                    <span class="flex-1 text-right">长×宽×厚 (mm)</span><span class="w-12 text-right">面积</span>
+                </div>`;
+            html += cl.panels.map(p => row(p, false)).join('');
+            html += cl.timber.map(p => row(p, true)).join('');
+
+            html += `<div class="pt-1.5 mt-1 border-t border-slate-200 space-y-0.5 text-[10px]">
+                <div class="flex justify-between"><span class="text-slate-500">板材面积 / 材积</span>
+                    <span class="font-bold text-slate-700">${(cl.plyArea/1e6).toFixed(2)} m² · ${(cl.plyVol/1e9).toFixed(3)} m³</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">木方材积 (地脚托)</span>
+                    <span class="font-bold text-slate-700">${(cl.timberVol/1e9).toFixed(3)} m³</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">标准板估算 ${SHEET_L}×${SHEET_W}</span>
+                    <span class="font-bold text-slate-700">${cl.sheets} 张</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">外箱自重估算</span>
+                    <span class="font-bold text-slate-700">${cl.weight.toFixed(1)} kg</span></div>
+                <div class="flex justify-between border-t border-slate-100 pt-1 mt-1">
+                    <span class="text-slate-500">运输外形 (含${SKID_H}mm地脚托)</span>
+                    <span class="font-bold text-amber-700">${cl.spec.L}×${cl.spec.W}×${cl.outerH}</span></div>
+            </div>`;
+
+            // 装配闭合性自检：拼出的净内腔应与解算内尺寸一致
+            const dl = data.innerL, dw = data.innerW, dh = data.innerH;
+            if (dl != null && (Math.abs(cl.closure.innerL - dl) > 1 ||
+                               Math.abs(cl.closure.innerW - dw) > 1 ||
+                               Math.abs(cl.closure.innerH - dh) > 1)) {
+                html += `<div class="mt-1 text-[9px] font-bold text-red-600">⚠ 装配校验：拼合内腔 ${cl.closure.innerL}×${cl.closure.innerW}×${cl.closure.innerH} 与解算内尺寸 ${dl}×${dw}×${dh} 不符</div>`;
+            }
+            if (cl.oversize.length) {
+                html += `<div class="mt-1 text-[9px] font-bold text-amber-600">⚠ ${cl.oversize.map(p=>p.name).join('、')} 超出标准板幅面，需拼板或定制板材</div>`;
+            }
+
+            if (resultData.results.length > 1) {
+                const agg = aggregateCutLists();
+                html += `<div class="mt-2 pt-1.5 border-t-2 border-slate-300 text-[10px]">
+                    <div class="font-black text-slate-600 mb-1">全部 ${agg.crates} 只外箱合计</div>
+                    <div class="flex justify-between"><span class="text-slate-500">板材面积</span><span class="font-bold text-slate-700">${(agg.plyArea/1e6).toFixed(2)} m²</span></div>
+                    <div class="flex justify-between"><span class="text-slate-500">标准板估算</span><span class="font-bold text-slate-700">${agg.sheets} 张</span></div>
+                    <div class="flex justify-between"><span class="text-slate-500">木方材积</span><span class="font-bold text-slate-700">${(agg.timberVol/1e9).toFixed(3)} m³</span></div>
+                    <div class="flex justify-between"><span class="text-slate-500">外箱自重合计</span><span class="font-bold text-slate-700">${agg.weight.toFixed(1)} kg</span></div>
+                </div>`;
+            }
+
+            html += `<button onclick="exportCutListCSV()" class="md3e-btn mt-2 w-full py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center gap-1.5">
+                        <i data-lucide="file-spreadsheet" size="11"></i> 导出开料清单 (CSV)
+                     </button>`;
+
+            body.innerHTML = html;
+            lucide.createIcons();
+        }
+
         function createTextSprite(text, color, bgColor) {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = 180;
-            canvas.height = 90;
-            
-            ctx.fillStyle = bgColor;
-            ctx.beginPath();
-            ctx.roundRect(5, 5, 170, 80, 10);
-            ctx.fill();
-            
-            ctx.font = 'bold 22px "Segoe UI", sans-serif';
-            ctx.fillStyle = color;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(text, 90, 45);
-            
-            const tex = new THREE.CanvasTexture(canvas);
+            // 相同文本/配色的标签贴图跨场景复用：
+            // 一个方案动辄上百个标签，每次重建都新建 canvas + CanvasTexture
+            // 会造成明显的 GPU 上传开销与显存增长
+            const key = `${text}|${color}|${bgColor}`;
+            let tex = textSpriteCache.get(key);
+            if (!tex) {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 180;
+                canvas.height = 90;
+
+                ctx.fillStyle = bgColor;
+                ctx.beginPath();
+                ctx.roundRect(5, 5, 170, 80, 10);
+                ctx.fill();
+
+                ctx.font = 'bold 22px "Segoe UI", sans-serif';
+                ctx.fillStyle = color;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, 90, 45);
+
+                tex = new THREE.CanvasTexture(canvas);
+                tex.__cached = true;              // 标记为缓存持有，场景销毁时不释放
+                if (textSpriteCache.size > 600) { // 上限保护，防止长会话无限增长
+                    const oldest = textSpriteCache.keys().next().value;
+                    const t = textSpriteCache.get(oldest);
+                    if (t && t.dispose) t.dispose();
+                    textSpriteCache.delete(oldest);
+                }
+                textSpriteCache.set(key, tex);
+            }
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
             sprite.scale.set(110, 55, 1);
             return sprite;
@@ -2648,7 +2907,6 @@
             
             if (isBoxMode) {
                 const wt = data.wallThickness || 0;
-                const SKID_H = 90;
                 const oL = data.spec.l, oW = data.spec.w, oH = data.spec.h;
                 const wt2 = data.wallThickness || 15;
                 const innerStr = `${data.innerL} x ${data.innerW} x ${data.innerH}`;
@@ -2688,29 +2946,7 @@
                     lucide.createIcons();
                 }
 
-                // 开料清单
-                const panels = [
-                    { name: '顶板', qty: 1, l: oL, w: oW, t: wt2 },
-                    { name: '底板', qty: 1, l: oL, w: oW, t: wt2 },
-                    { name: '侧板(长)', qty: 2, l: oL, w: oH - 2*wt2, t: wt2 },
-                    { name: '端板(宽)', qty: 2, l: oW - 2*wt2, w: oH - 2*wt2, t: wt2 },
-                    { name: '地脚托', qty: 3, l: oL, w: SKID_H, t: SKID_H },
-                ];
-                document.getElementById('boxCutListPanel').classList.remove('hidden');
-                document.getElementById('boxCutListBody').innerHTML =
-                    panels.map(p => {
-                        const vol = (p.qty * p.l * p.w * p.t / 1e6).toFixed(1);
-                        return `<div class="flex items-baseline gap-1.5 border-b border-slate-100 py-0.5">
-                            <span class="w-16 text-slate-500 shrink-0">${p.name}</span>
-                            <span class="text-slate-400 shrink-0">×${p.qty}</span>
-                            <span class="flex-1 font-bold text-slate-800">${p.l}<span class="text-slate-400 font-normal">×</span>${p.w}<span class="text-slate-400 font-normal">×${p.t}mm</span></span>
-                            <span class="text-slate-400 text-[9px] shrink-0">${vol}cm³</span>
-                        </div>`;
-                    }).join('') +
-                    `<div class="flex justify-between pt-1 mt-0.5 text-[10px] font-bold text-slate-600">
-                        <span>运输外形 (含地脚托)</span>
-                        <span class="font-mono">${oL}×${oW}×${oH+SKID_H} mm</span>
-                    </div>`;
+                renderCutListPanel(data);
             }
 
             const detail = document.getElementById('detailBody');
