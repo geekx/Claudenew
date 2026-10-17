@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>扁铜线焊接热仿真</title>
+<style>
+  :root { --claude: #d97757; --ink: #f2efe8; --muted: #a8a49c; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000;
+    font-family: "WenQuanYi Zen Hei", "Noto Sans CJK SC", sans-serif; color: var(--ink); }
+  .layer { position: absolute; inset: 0; }
+  #bgLight { background: radial-gradient(ellipse at 50% 40%, #fbfbfd 0%, #e4e7ec 70%, #d3d7de 100%); }
+  #bgDark { background-color: #07090d;
+    background-image: linear-gradient(rgba(70,140,170,.13) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(70,140,170,.13) 1px, transparent 1px);
+    background-size: 60px 60px; }
+  canvas#gl { position: absolute; inset: 0; }
+  svg#ov { position: absolute; inset: 0; pointer-events: none; }
+  .lbl { position: absolute; white-space: nowrap; transform: translate(-50%, -50%); }
+
+  /* ---------- CAD chrome ---------- */
+  #cad { color: #2b2f36; }
+  #toolbar { position: absolute; top: 0; left: 0; right: 0; height: 132px; background: #f7f8fa;
+    border-bottom: 2px solid #d5d9e0; display: flex; align-items: center; justify-content: center; gap: 18px; }
+  .tool { width: 150px; height: 104px; border-radius: 14px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; font-size: 28px; color: #4a515c; gap: 6px; }
+  .tool .ic { font-size: 40px; line-height: 1; }
+  .tool.on { background: #dbe8ff; color: #1d5bd8; box-shadow: inset 0 0 0 2px #8db0f5; }
+  #tree { position: absolute; top: 160px; left: 26px; width: 330px; background: rgba(255,255,255,.82);
+    border: 2px solid #dde1e7; border-radius: 16px; padding: 20px 22px; font-size: 27px; line-height: 1.75; }
+  #tree b { font-size: 29px; }
+  #tree div { color: #59606b; }
+  #tree div.on { color: #1d5bd8; font-weight: bold; }
+  #status { position: absolute; bottom: 150px; left: 0; right: 0; text-align: center; font-size: 30px; color: #59606b; }
+
+  /* ---------- weld HUD ---------- */
+  #hud .title { position: absolute; top: 70px; left: 0; right: 0; text-align: center; font-size: 58px; font-weight: bold; letter-spacing: 6px; }
+  #hud .sub { position: absolute; top: 152px; left: 0; right: 0; text-align: center; font-size: 28px; color: #8fb6c8; }
+  #simt { position: absolute; top: 230px; left: 50px; font: bold 40px monospace; color: #cfe8f2; }
+  #tag { position: absolute; top: 290px; left: 50px; font-size: 28px; padding: 6px 18px; border-radius: 10px; }
+  #cbar { position: absolute; left: 56px; top: 400px; width: 34px; height: 820px; border-radius: 8px; border: 2px solid rgba(255,255,255,.4); }
+  #cbarT { position: absolute; left: 56px; top: 350px; font-size: 28px; color: #cfe8f2; }
+  .tick { position: absolute; left: 104px; font: 24px monospace; color: #cfe8f2; transform: translateY(-50%); }
+  #chart { position: absolute; left: 50px; top: 1390px; }
+  .readout { font: bold 64px monospace; text-shadow: 0 0 18px rgba(255,160,60,.6); }
+  .readout small { font-size: 30px; }
+
+  /* ---------- Claude UI ---------- */
+  #claudeUI { background: #262624; }
+  #cHead { position: absolute; top: 0; left: 0; right: 0; height: 150px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 48px; border-bottom: 1px solid #3a3936; font-size: 40px; }
+  #cHead .name { display: flex; align-items: center; gap: 16px; font-size: 44px; }
+  .pill { font-size: 28px; border: 2px solid #5b4a42; color: #f0c2ad; background: #3a2d27; padding: 8px 22px; border-radius: 40px; }
+  #uBubble { position: absolute; right: 48px; top: 210px; width: 820px; background: #3a3936; border-radius: 34px;
+    padding: 30px 36px; font-size: 38px; line-height: 1.5; }
+  #aRow { position: absolute; left: 48px; top: 520px; right: 48px; }
+  #thinkHead { display: flex; align-items: center; gap: 22px; font-size: 38px; }
+  #thinkTxt { background: linear-gradient(90deg, #8a857c 0%, #fff 50%, #8a857c 100%); background-size: 300% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: bold; }
+  #thinkTime { color: #8a857c; font-size: 32px; }
+  #thoughts { margin-top: 30px; margin-left: 30px; border-left: 4px solid #4a4844; padding-left: 30px;
+    font-size: 31px; line-height: 1.65; color: var(--muted); }
+  #thoughts div { opacity: 0; }
+  #answer { margin-top: 34px; font-size: 38px; line-height: 1.5; }
+  #cInput { position: absolute; left: 40px; right: 40px; bottom: 170px; height: 150px; background: #30302e;
+    border: 2px solid #44423e; border-radius: 36px; padding: 30px 36px; font-size: 34px; color: #e8e4dc; }
+  #sendBtn { position: absolute; right: 26px; bottom: 26px; width: 80px; height: 80px; border-radius: 22px;
+    background: var(--claude); color: #fff; font-size: 44px; display: flex; align-items: center; justify-content: center; }
+
+  /* ---------- mascot + summary + spectrum ---------- */
+  #mascot { position: absolute; left: 0; top: 0; width: 150px; height: 150px; }
+  #bubble { position: absolute; background: #fff; color: #222; font-size: 34px; font-weight: bold; padding: 14px 26px;
+    border-radius: 24px; white-space: nowrap; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+  #summary { position: absolute; left: 60px; right: 60px; top: 1010px; background: rgba(16,20,28,.9);
+    border: 2px solid rgba(217,119,87,.7); border-radius: 30px; padding: 40px 46px; font-size: 34px; line-height: 1.8; }
+  #summary h2 { font-size: 46px; margin-bottom: 14px; color: #f6c3ad; }
+  #summary .k { color: #8fb6c8; }
+  #summary .note { font-size: 24px; color: #7d8590; margin-top: 12px; line-height: 1.5; }
+  #spec { position: absolute; left: 0; bottom: 18px; }
+</style>
+</head>
+<body>
+<div class="layer" id="bgLight"></div>
+<div class="layer" id="bgDark"></div>
+<canvas id="gl" width="1080" height="1920"></canvas>
+<svg id="ov" width="1080" height="1920" viewBox="0 0 1080 1920"></svg>
+<div class="layer" id="labels"></div>
+
+<div class="layer" id="cad">
+  <div id="toolbar">
+    <div class="tool" data-k="sketch"><span class="ic">✎</span>草图</div>
+    <div class="tool" data-k="extrude"><span class="ic">⇧</span>拉伸</div>
+    <div class="tool" data-k="coat"><span class="ic">▣</span>漆膜</div>
+    <div class="tool" data-k="strip"><span class="ic">✂</span>剥漆</div>
+    <div class="tool" data-k="weld"><span class="ic">🔥</span>热仿真</div>
+  </div>
+  <div id="tree">
+    <b>▾ 扁铜线 2×3.2</b>
+    <div data-k="sketch">· 草图1 (2.0×3.2)</div>
+    <div data-k="extrude">· 拉伸1 H=100</div>
+    <div data-k="coat">· 漆膜 聚酰亚胺</div>
+    <div data-k="strip">· 剥漆 10 mm</div>
+    <div data-k="weld">· 焊接热分析</div>
+  </div>
+  <div id="status"></div>
+</div>
+
+<div class="layer" id="hud">
+  <div class="title">焊接热仿真 · 剥漆顶面</div>
+  <div class="sub">激光焊 · 吸收功率 850 W · 光斑 σ0.55 mm · 脉冲 0.12 s</div>
+  <div id="simt"></div>
+  <div id="tag"></div>
+  <div id="cbarT">℃</div>
+  <div id="cbar"></div>
+  <div id="ticks"></div>
+  <canvas id="chart" width="980" height="300"></canvas>
+</div>
+
+<div class="layer" id="claudeUI">
+  <div id="cHead"><span>≡</span><span class="name"><span id="hdIcon"></span>Claude</span><span class="pill">Max · 深度思考</span></div>
+  <div id="uBubble">扁铜线 2×3.2 截面，高度 100，顶部剥漆 10 mm。画完在剥漆顶面做焊接热仿真。</div>
+  <div id="aRow">
+    <div id="thinkHead"><span id="thinkIcon"></span><span id="thinkTxt">Thinking</span><span id="thinkTime"></span></div>
+    <div id="thoughts">
+      <div>截面 2.0 × 3.2 mm，拉伸 100 mm …</div>
+      <div>顶部 10 mm 去除聚酰亚胺漆膜，露出裸铜</div>
+      <div>材料：无氧铜 C11000，k = 390 W/m·K</div>
+      <div>网格 10 × 16 × 200 = 32,000 节点</div>
+      <div>热源：高斯面热源 850 W × 0.12 s，计入熔化潜热</div>
+      <div>显式差分 Δt = 33 μs，求解 3.0 s 冷却过程 …</div>
+      <div>关注点：漆皮边界（距顶 10 mm）温升</div>
+    </div>
+    <div id="answer"></div>
+  </div>
+  <div id="cInput"><span id="typing"></span><div id="sendBtn">↑</div></div>
+</div>
+
+<div class="layer" id="summaryL">
+  <div id="summary">
+    <h2>✓ 仿真结论</h2>
+    <div><span class="k">几何</span>　2.0 × 3.2 × 100 mm · 剥漆 10 mm</div>
+    <div><span class="k">峰值温度</span>　<b id="sTmax"></b> ℃ · 熔池深 ≈ <b id="sMelt"></b> mm</div>
+    <div><span class="k">漆皮边界</span>　峰值 <b id="sEdge"></b> ℃（t ≈ 0.7 s）</div>
+    <div><span class="k">距顶 20 mm</span>　峰值 <b id="s80"></b> ℃</div>
+    <div class="note">3D 瞬态导热 · 32,000 节点 · 底端夹具 25 ℃ · 计入熔化潜热<br>简化模型：未计熔池流动、蒸发与漆膜热阻，结果仅作示意</div>
+  </div>
+</div>
+
+<div id="mascot"></div>
+<div id="bubble"></div>
+<canvas id="spec" width="1080" height="110"></canvas>
+
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js",
+  "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const VW = 1080, VH = 1920, FPS = 30, DURATION = 32;
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const smooth = (x) => { x = clamp(x); return x * x * (3 - 2 * x); };
+const seg = (t, a, b) => smooth((t - a) / (b - a));
+const lerp = (a, b, u) => a + (b - a) * u;
+const fade = (t, a, b, c, d) => Math.min(seg(t, a, b), 1 - seg(t, c, d));
+
+// ---------------------------------------------------------------- data
+const meta = await (await fetch('data/meta.json')).json();
+const field = new Uint16Array(await (await fetch('data/field.bin')).arrayBuffer());
+const spectrum = await (await fetch('data/spectrum.json')).json();
+const { nx, ny, nz } = meta, P = meta.probes, NCELL = nx * ny * nz;
+
+// ---------------------------------------------------------------- starburst icon (SVG)
+function starSVG(size, color = '#d97757') {
+  let rays = '';
+  for (let i = 0; i < 12; i++) {
+    const len = i % 2 ? 40 : 46;
+    rays += `<rect x="-5.5" y="${-len}" width="11" height="${len - 8}" rx="5.5" transform="rotate(${i * 30})" fill="${color}"/>`;
+  }
+  return `<svg width="${size}" height="${size}" viewBox="-50 -50 100 100"><g class="rot">${rays}<circle r="11" fill="${color}"/></g></svg>`;
+}
+$('hdIcon').innerHTML = starSVG(54);
+$('thinkIcon').innerHTML = starSVG(70);
+$('mascot').innerHTML = starSVG(150);
+
+// ---------------------------------------------------------------- three.js scene
+const renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setSize(VW, VH, false);
+renderer.setClearColor(0x000000, 0);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+const scene = new THREE.Scene();
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(30, VW / VH, 0.1, 2000);
+scene.add(new THREE.DirectionalLight(0xffffff, 1.6).translateX(30).translateY(80).translateZ(50));
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+const grid = new THREE.GridHelper(40, 40, 0x8a94a6, 0xb9c0cc);
+grid.material.transparent = true;
+scene.add(grid);
+
+const wireGeo = new THREE.BoxGeometry(2, 100, 3.2, 10, 200, 16).translate(0, 50, 0);
+const copper = new THREE.Mesh(wireGeo, new THREE.MeshStandardMaterial({ color: 0xffa060, metalness: 0.55, roughness: 0.22, envMapIntensity: 2.0, transparent: true }));
+scene.add(copper);
+
+// heat mesh: per-vertex colour from the simulated field
+const heatGeo = wireGeo.clone();
+const vcount = heatGeo.attributes.position.count;
+heatGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(vcount * 3), 3));
+const heat = new THREE.Mesh(heatGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true }));
+scene.add(heat);
+const vIdx = new Int32Array(vcount), vShade = new Float32Array(vcount);
+{
+  const pos = heatGeo.attributes.position, nor = heatGeo.attributes.normal;
+  for (let v = 0; v < vcount; v++) {
+    const i = clamp(Math.floor((pos.getX(v) + 1) / 0.2), 0, nx - 1);
+    const j = clamp(Math.floor((pos.getZ(v) + 1.6) / 0.2), 0, ny - 1);
+    const k = clamp(Math.floor(pos.getY(v) / 0.5), 0, nz - 1);
+    vIdx[v] = (i * ny + j) * nz + k;
+    const n = [nor.getX(v), nor.getY(v), nor.getZ(v)];
+    vShade[v] = n[1] > 0.5 ? 1.0 : n[1] < -0.5 ? 0.45 : Math.abs(n[0]) > 0.5 ? 0.74 : 0.9;
+  }
+}
+
+const enamel = new THREE.Mesh(new THREE.BoxGeometry(2.18, 1, 3.38).translate(0, 0.5, 0),
+  new THREE.MeshStandardMaterial({ color: 0x6e260a, metalness: 0.1, roughness: 0.18, envMapIntensity: 1.5, transparent: true }));
+scene.add(enamel);
+
+// glow sprite, laser beam and sparks
+function radialTex(stops) {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  stops.forEach(([o, col]) => gr.addColorStop(o, col));
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+}
+const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex([[0, 'rgba(255,255,240,1)'], [0.25, 'rgba(255,200,90,.8)'], [0.6, 'rgba(255,90,20,.25)'], [1, 'rgba(255,60,0,0)']]),
+  blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+glow.position.set(0, 100.2, 0);
+scene.add(glow);
+const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.45, 7, 24, 1, true).translate(0, 103.5, 0),
+  new THREE.MeshBasicMaterial({ color: 0x9fe8ff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+scene.add(beam);
+const NSP = 260, sp = [];
+let seed = 12345; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+for (let i = 0; i < NSP; i++) {
+  const a = rnd() * Math.PI * 2, s = 8 + rnd() * 22;
+  sp.push({ birth: rnd() * 0.95, life: 0.25 + rnd() * 0.5, vx: Math.cos(a) * s * 0.6, vz: Math.sin(a) * s * 0.6, vy: 6 + rnd() * 18 });
+}
+const spGeo = new THREE.BufferGeometry();
+spGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(NSP * 3), 3));
+const sparks = new THREE.Points(spGeo, new THREE.PointsMaterial({ color: 0xffc860, size: 0.18, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+scene.add(sparks);
+
+// ---------------------------------------------------------------- colour map
+const CMAP = [[0, '#0b1a3a'], [0.14, '#22207a'], [0.3, '#7b1fa2'], [0.45, '#d81b60'], [0.6, '#f4511e'], [0.75, '#ff9800'], [0.9, '#ffd54f'], [1, '#ffffff']]
+  .map(([s, h]) => [s, new THREE.Color(h)]);
+const TMIN = 25, TMAXC = 1400;
+const sOf = (T) => Math.sqrt(clamp((T - TMIN) / (TMAXC - TMIN)));
+function cmap(s, out) {
+  for (let i = 1; i < CMAP.length; i++) if (s <= CMAP[i][0]) {
+    const u = (s - CMAP[i - 1][0]) / (CMAP[i][0] - CMAP[i - 1][0]);
+    return out.copy(CMAP[i - 1][1]).lerp(CMAP[i][1], u);
+  }
+  return out.copy(CMAP[CMAP.length - 1][1]);
+}
+// colour bar + ticks
+$('cbar').style.background = `linear-gradient(to top, ${CMAP.map(([s, c]) => `#${c.getHexString()} ${s * 100}%`).join(',')})`;
+$('ticks').innerHTML = [25, 100, 250, 500, 1083, 1400].map((T) =>
+  `<div class="tick" style="top:${400 + 820 * (1 - sOf(T))}px">${T === 1083 ? '熔点 1083' : T}</div>`).join('');
+
+// ---------------------------------------------------------------- field sampling
+function simFrame(simT) {
+  const ts = P.t; let i = 0;
+  while (i < ts.length - 2 && ts[i + 1] <= simT) i++;
+  return [i, clamp((simT - ts[i]) / (ts[i + 1] - ts[i]))];
+}
+const tmpC = new THREE.Color();
+function paintHeat(simT) {
+  const [f, u] = simFrame(simT), o0 = f * NCELL, o1 = (f + 1) * NCELL;
+  const col = heatGeo.attributes.color.array;
+  for (let v = 0; v < vcount; v++) {
+    const T = lerp(field[o0 + vIdx[v]], field[o1 + vIdx[v]], u) / 10;
+    cmap(sOf(T), tmpC);
+    col[v * 3] = tmpC.r * vShade[v]; col[v * 3 + 1] = tmpC.g * vShade[v]; col[v * 3 + 2] = tmpC.b * vShade[v];
+  }
+  heatGeo.attributes.color.needsUpdate = true;
+}
+const probe = (key, simT) => { const [f, u] = simFrame(simT); return lerp(P[key][f], P[key][f + 1], u); };
+
+// ---------------------------------------------------------------- camera keyframes
+const KEYS = [
+  [0, [6, 7, 9], [0, 0, 0]], [8.0, [6, 7, 9], [0, 0, 0]], [10.0, [7.5, 6, 10], [0, 0, 0]],
+  [12.5, [110, 95, 190], [0, 50, 0]], [13.7, [-115, 90, 185], [0, 50, 0]],
+  [14.5, [26, 104, 40], [0, 93, 0]], [16.6, [-22, 104, 42], [0, 93, 0]],
+  [17.6, [26, 110, 40], [0, 93, 0]], [21.0, [-22, 110, 42], [0, 93, 0]],
+  [24.0, [34, 102, 56], [0, 87, 0]], [28.0, [-36, 100, 56], [0, 86, 0]],
+  [29.5, [34, 112, 64], [0, 84, 0]], [32, [40, 112, 60], [0, 84, 0]],
+];
+function setCamera(t) {
+  let i = 0; while (i < KEYS.length - 2 && KEYS[i + 1][0] <= t) i++;
+  const [ta, pa, ga] = KEYS[i], [tb, pb, gb] = KEYS[i + 1], u = seg(t, ta, tb);
+  camera.position.set(...pa.map((x, k) => lerp(x, pb[k], u)));
+  camera.lookAt(new THREE.Vector3(...ga.map((x, k) => lerp(x, gb[k], u))));
+  camera.updateMatrixWorld();
+}
+const proj = (x, y, z) => { const p = new THREE.Vector3(x, y, z).project(camera); return [(p.x + 1) / 2 * VW, (1 - p.y) / 2 * VH]; };
+
+// ---------------------------------------------------------------- overlay helpers
+const ov = $('ov'), labels = $('labels');
+function svgEl(id, tag, attrs) {
+  let e = document.getElementById(id);
+  if (!e) { e = document.createElementNS('http://www.w3.org/2000/svg', tag); e.id = id; ov.appendChild(e); }
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function label(id, html, [x, y], style = '') {
+  let e = document.getElementById(id);
+  if (!e) { e = document.createElement('div'); e.id = id; e.className = 'lbl'; labels.appendChild(e); }
+  e.innerHTML = html; e.style.cssText = `left:${x}px;top:${y}px;${style}`;
+  return e;
+}
+const pts = (arr) => arr.map((p) => p.join(',')).join(' ');
+function dim(id, a, b, extA, extB, text, op, color = '#1d5bd8', textStyle = '') {
+  const A = proj(...a), B = proj(...b);
+  svgEl(id + 'L', 'polyline', { points: pts([A, B]), stroke: color, 'stroke-width': 4, fill: 'none', opacity: op, 'marker-start': 'url(#arr)', 'marker-end': 'url(#arr)' });
+  svgEl(id + 'EA', 'polyline', { points: pts(extA.map((p) => proj(...p))), stroke: color, 'stroke-width': 2.5, fill: 'none', opacity: op });
+  svgEl(id + 'EB', 'polyline', { points: pts(extB.map((p) => proj(...p))), stroke: color, 'stroke-width': 2.5, fill: 'none', opacity: op });
+  label(id + 'T', text, [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2],
+    `opacity:${op};font:bold 40px monospace;color:${color};background:rgba(255,255,255,.85);padding:2px 14px;border-radius:10px;${textStyle}`);
+}
+ov.innerHTML = `<defs><marker id="arr" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+  <path d="M0,0 L10,5 L0,10 z" fill="#1d5bd8"/></marker></defs>`;
+
+// ---------------------------------------------------------------- chart (Tmax & enamel edge vs time)
+const chart = $('chart'), cg = chart.getContext('2d');
+function drawChart(simT, op) {
+  chart.style.opacity = op;
+  const W = 980, H = 300, L = 90, B = 50, T = 20, R = 20;
+  cg.clearRect(0, 0, W, H);
+  cg.fillStyle = 'rgba(10,16,24,.75)'; cg.fillRect(0, 0, W, H);
+  cg.strokeStyle = 'rgba(140,190,210,.25)'; cg.lineWidth = 1; cg.font = '22px monospace'; cg.fillStyle = '#8fb6c8';
+  const X = (s) => L + (W - L - R) * s / 3, Y = (v) => H - B - (H - B - T) * v / 1500;
+  for (const v of [0, 500, 1000, 1500]) { cg.beginPath(); cg.moveTo(L, Y(v)); cg.lineTo(W - R, Y(v)); cg.stroke(); cg.fillText(v, 10, Y(v) + 7); }
+  for (const s of [0, 1, 2, 3]) cg.fillText(s + 's', X(s) - 12, H - 16);
+  const line = (key, color) => {
+    cg.strokeStyle = color; cg.lineWidth = 4; cg.beginPath();
+    let first = true;
+    for (let i = 0; i < P.t.length && P.t[i] <= simT; i++) { const x = X(P.t[i]), y = Y(P[key][i]); first ? cg.moveTo(x, y) : cg.lineTo(x, y); first = false; }
+    cg.lineTo(X(simT), Y(probe(key, simT))); cg.stroke();
+  };
+  line('Tmax', '#ffb340'); line('T_edge', '#4fd1ff'); line('T_80', '#9b8cff');
+  cg.font = 'bold 24px "WenQuanYi Zen Hei"';
+  [['顶面最高温', '#ffb340'], ['漆皮边界', '#4fd1ff'], ['距顶 20 mm', '#9b8cff']].forEach(([n, c], i) => {
+    cg.fillStyle = c; cg.fillRect(L + 20 + i * 260, T + 8, 26, 8); cg.fillText(n, L + 54 + i * 260, T + 20);
+  });
+}
+
+// ---------------------------------------------------------------- spectrum bars
+const spec = $('spec'), sg = spec.getContext('2d');
+function drawSpectrum(t) {
+  const bands = spectrum[clamp(Math.round(t * FPS), 0, spectrum.length - 1)];
+  sg.clearRect(0, 0, 1080, 110);
+  const n = bands.length, bw = 1080 / n;
+  bands.forEach((v, i) => {
+    const h = 6 + v * 96, hue = 190 - 150 * i / n;
+    sg.fillStyle = `hsl(${hue},85%,60%)`;
+    for (let y = 0; y < h; y += 9) sg.fillRect(i * bw + 3, 104 - y - 6, bw - 6, 6);
+  });
+}
+
+// ---------------------------------------------------------------- mascot
+const BUBBLES = [
+  [8.6, 10.0, '先画个截面 ✎'], [10.4, 12.4, '拉伸 100 mm ⇧'], [12.6, 13.9, '刷上漆膜'],
+  [14.6, 16.6, '剥漆 10 mm ✂'], [17.6, 19.6, '开焊！⚡'], [19.8, 22.4, '1400 ℃，好烫 🔥'],
+  [23.6, 27.6, '漆皮边界才 253 ℃ ✓'], [28.6, 32, '搞定 ✓'],
+];
+function mascot(t) {
+  const m = $('mascot'), b = $('bubble'), rot = m.querySelector('.rot');
+  const show = seg(t, 7.9, 8.4);
+  let x = 80, y = 1560;
+  if (t > 17) { x = lerp(80, 60, seg(t, 17, 17.6)); y = lerp(1560, 1232, seg(t, 17, 17.6)); }
+  if (t > 28) { x = lerp(60, 465, seg(t, 28, 28.8)); y = lerp(1232, 800, seg(t, 28, 28.8)); }
+  const hop = Math.abs(Math.sin(t * Math.PI * 2)) * 26 * (t > 28.6 ? 1.6 : 1);   // hop on the beat (120 BPM)
+  const squash = 1 + 0.08 * Math.cos(t * Math.PI * 4);
+  const scale = t > 28 ? lerp(1, 1.35, seg(t, 28, 28.8)) : 1;
+  m.style.opacity = show;
+  m.style.transform = `translate(${x}px, ${y - hop}px) scale(${scale * squash}, ${scale / squash})`;
+  const spin = (t > 17.4 && t < 21) ? t * 300 : t * 40;
+  rot.setAttribute('transform', `rotate(${spin})`);
+  const cur = BUBBLES.find(([a, c]) => t >= a && t < c);
+  if (cur) {
+    const [a, c, txt] = cur, op = fade(t, a, a + 0.2, c - 0.2, c);
+    b.textContent = txt; b.style.opacity = op;
+    b.style.transform = `translate(${x + 150 * scale}px, ${y - hop - 30}px) scale(${0.8 + 0.2 * op})`;
+  } else b.style.opacity = 0;
+}
+
+// ---------------------------------------------------------------- Claude "Max think" UI
+const PROMPT = $('uBubble').textContent;
+const thoughtEls = [...$('thoughts').children];
+function claudeUI(t) {
+  const ui = $('claudeUI');
+  const out = seg(t, 7.4, 8.1);
+  ui.style.opacity = 1 - out;
+  ui.style.transform = `scale(${1 - 0.05 * out}) translateY(${-60 * out}px)`;
+  if (out >= 1) return;
+  const typed = Math.floor(PROMPT.length * clamp((t - 0.3) / 1.9));
+  const sent = t >= 2.35;
+  $('typing').innerHTML = sent ? '<span style="color:#77736b">回复 Claude…</span>' : PROMPT.slice(0, typed) + (Math.floor(t * 3) % 2 ? '|' : '');
+  $('uBubble').style.opacity = seg(t, 2.35, 2.6);
+  $('uBubble').style.transform = `translateY(${30 * (1 - seg(t, 2.35, 2.6))}px)`;
+  $('aRow').style.opacity = seg(t, 2.6, 2.9);
+  const thinking = t < 6.6;
+  $('thinkIcon').querySelector('.rot').setAttribute('transform', `rotate(${thinking ? t * 220 : 660 * 6.6 / 3})`);
+  $('thinkIcon').style.transform = `scale(${thinking ? 1 + 0.1 * Math.sin(t * 10) : 1})`;
+  $('thinkTxt').textContent = thinking ? '深度思考中…' : '✓ 已深度思考';
+  $('thinkTxt').style.backgroundPosition = `${(-t * 120) % 300}% 0`;
+  $('thinkTime').textContent = `${Math.max(0, Math.floor((Math.min(t, 6.6) - 2.6) * 4.2))} 秒`;
+  thoughtEls.forEach((e, i) => { const a = 2.9 + i * 0.5; e.style.opacity = seg(t, a, a + 0.3); });
+  const ans = '好的，开始建模并求解 ⚙️';
+  $('answer').textContent = ans.slice(0, Math.floor(ans.length * clamp((t - 6.7) / 0.6)));
+}
+
+// ---------------------------------------------------------------- main render
+const STEPS = [['sketch', 8.0], ['extrude', 10.0], ['coat', 12.5], ['strip', 13.9], ['weld', 16.6]];
+function simTimeAt(t) {
+  const tc = t - 17.0;
+  if (tc < 0) return 0;
+  if (tc < 4) return meta.t_on * tc / 4;                              // slow motion ×33
+  return meta.t_on + (3.0 - meta.t_on) * Math.pow(clamp((tc - 4) / 7), 1.6);
+}
+
+window.render = (t) => {
+  setCamera(t);
+  const dark = seg(t, 16.6, 17.4);
+  $('bgLight').style.opacity = 1 - dark;
+  $('bgDark').style.opacity = dark;
+
+  // CAD chrome
+  const cadOp = fade(t, 7.9, 8.3, 16.6, 17.2);
+  $('cad').style.opacity = cadOp;
+  let step = null; STEPS.forEach(([k, a]) => { if (t >= a) step = k; });
+  document.querySelectorAll('.tool').forEach((e) => e.classList.toggle('on', e.dataset.k === step));
+  document.querySelectorAll('#tree div').forEach((e) => {
+    const s = STEPS.find(([k]) => k === e.dataset.k);
+    e.style.opacity = t >= s[1] ? 1 : 0.25; e.classList.toggle('on', e.dataset.k === step);
+  });
+  $('status').textContent = { sketch: '前视基准面 · 绘制矩形 2.0 × 3.2', extrude: '拉伸 · 深度 100 mm', coat: '漆膜 · 聚酰亚胺 · 厚 0.09 mm',
+    strip: '剥漆 · 顶部 10 mm', weld: '网格划分 · 32,000 节点' }[step] || '';
+
+  // sketch
+  grid.material.opacity = fade(t, 7.9, 8.4, 11.0, 12.0) * 0.9;
+  grid.visible = grid.material.opacity > 0.01;
+  const sk = seg(t, 8.3, 9.6);
+  const corners = [[-1, 0, -1.6], [1, 0, -1.6], [1, 0, 1.6], [-1, 0, 1.6], [-1, 0, -1.6]];
+  const drawn = [corners[0]];
+  for (let i = 1; i < 5; i++) {
+    const u = clamp(sk * 4 - (i - 1));
+    if (u <= 0) break;
+    drawn.push(corners[i - 1].map((x, k) => lerp(x, corners[i][k], u)));
+  }
+  const skOp = 1 - seg(t, 10.6, 11.2);
+  svgEl('sketch', 'polyline', { points: pts(drawn.map((p) => proj(...p))), stroke: '#1d5bd8', 'stroke-width': 6, fill: 'none', opacity: skOp * seg(t, 8.2, 8.4), 'stroke-linejoin': 'round' });
+  const dOp = fade(t, 9.4, 9.8, 10.4, 10.9);
+  dim('dw', [-1, 0, 2.7], [1, 0, 2.7], [[-1, 0, 1.6], [-1, 0, 3.0]], [[1, 0, 1.6], [1, 0, 3.0]], '2.0', dOp);
+  dim('dd', [2.1, 0, -1.6], [2.1, 0, 1.6], [[1, 0, -1.6], [2.4, 0, -1.6]], [[1, 0, 1.6], [2.4, 0, 1.6]], '3.2', dOp);
+
+  // extrude
+  const h = 100 * Math.pow(seg(t, 10.0, 12.3), 1.3);
+  copper.visible = h > 0.05;
+  copper.scale.y = Math.max(h, 0.05) / 100;
+  const hOp = fade(t, 10.1, 10.4, 13.2, 13.6);
+  dim('dh', [9, 0, 0], [9, h, 0], [[1.2, 0, 0], [10, 0, 0]], [[1.2, h, 0], [10, h, 0]], `H ${h.toFixed(h > 99.9 ? 0 : 1)}`, hOp);
+
+  // enamel coat & strip
+  const coatTop = 100 * seg(t, 12.5, 13.6);
+  const stripTop = lerp(100, 90, seg(t, 14.4, 15.8));
+  const top = t < 14 ? coatTop : stripTop;
+  enamel.visible = top > 0.1;
+  enamel.scale.y = Math.max(top, 0.1);
+  enamel.material.opacity = lerp(0.97, 0.22, seg(t, 16.8, 17.6));
+  const sOp = fade(t, 15.0, 15.4, 16.6, 17.0);
+  dim('ds', [-2.6, 90, 0], [-2.6, 100, 0], [[-1.2, 90, 0], [-3.0, 90, 0]], [[-1.2, 100, 0], [-3.0, 100, 0]], '剥漆 10 mm', sOp, '#c2410c',
+    'font-family:"WenQuanYi Zen Hei";transform:translate(-105%,-50%)');
+
+  // weld / thermal
+  const hudOp = fade(t, 17.0, 17.5, 28.0, 28.6);
+  $('hud').style.opacity = hudOp;
+  const simT = simTimeAt(t);
+  const heatOp = seg(t, 16.8, 17.5);
+  heat.visible = heatOp > 0;
+  copper.material.opacity = 1 - heatOp;
+  copper.visible = copper.visible && heatOp < 1;
+  heat.material.opacity = heatOp;
+  if (heat.visible) paintHeat(simT);
+  const on = t >= 17.4 && simT < meta.t_on;
+  beam.visible = on;
+  beam.material.opacity = 0.55 + 0.25 * Math.sin(t * 90);
+  const Tm = probe('Tmax', simT);
+  glow.visible = t > 17.4 && t < 28.6;
+  const g = clamp((Tm - 300) / 1100);
+  glow.scale.setScalar(1.0 + 4.5 * g * (on ? 1 + 0.1 * Math.sin(t * 60) : 1));
+  glow.material.opacity = g;
+  const spPos = spGeo.attributes.position.array, pulseU = clamp((t - 17.4) / 3.6);
+  sparks.visible = t > 17.4 && t < 21.8;
+  sp.forEach((s, i) => {
+    const age = (pulseU - s.birth) * 3.6;
+    if (age < 0 || age > s.life) { spPos[i * 3 + 1] = -999; return; }
+    spPos[i * 3] = s.vx * age; spPos[i * 3 + 2] = s.vz * age; spPos[i * 3 + 1] = 100.2 + s.vy * age - 25 * age * age;
+  });
+  spGeo.attributes.position.needsUpdate = true;
+
+  $('simt').textContent = `t = ${simT.toFixed(3)} s`;
+  const tag = $('tag');
+  if (simT < meta.t_on) { tag.textContent = '⚡ 焊接中 · 慢放 ×33'; tag.style.background = '#7a2e12'; tag.style.color = '#ffd7b8'; }
+  else { tag.textContent = '❄ 冷却中'; tag.style.background = '#123a52'; tag.style.color = '#bde7ff'; }
+
+  // leader labels
+  const lOp = hudOp * seg(t, 17.6, 18.0);
+  const pTop = proj(0, 100, 0), aTop = [640, 360];
+  svgEl('ldTop', 'polyline', { points: pts([pTop, [aTop[0], aTop[1] + 40], [aTop[0] + 330, aTop[1] + 40]]), stroke: '#ffd7a0', 'stroke-width': 3, fill: 'none', opacity: lOp });
+  svgEl('dotTop', 'circle', { cx: pTop[0], cy: pTop[1], r: 8, fill: '#fff', opacity: lOp });
+  const melt = probe('melt_depth_mm', simT);
+  label('lbTop', `<div class="readout">${Tm.toFixed(0)}<small> ℃</small></div><div style="font-size:28px;color:#ffd7a0">顶面最高温${melt > 0.05 ? ` · 熔池 ${melt.toFixed(1)} mm` : ''}</div>`,
+    [aTop[0] + 165, aTop[1] - 20], `opacity:${lOp};text-align:center`);
+  const pEdge = proj(1, 90, 1.6), aEdge = [640, 1020];
+  const Te = probe('T_edge', simT);
+  svgEl('ldEdge', 'polyline', { points: pts([pEdge, [aEdge[0], aEdge[1] + 40], [aEdge[0] + 330, aEdge[1] + 40]]), stroke: '#4fd1ff', 'stroke-width': 3, fill: 'none', opacity: lOp });
+  svgEl('dotEdge', 'circle', { cx: pEdge[0], cy: pEdge[1], r: 8, fill: '#4fd1ff', opacity: lOp });
+  label('lbEdge', `<div style="font:bold 52px monospace;color:#bdf0ff">${Te.toFixed(0)}<small style="font-size:26px"> ℃</small></div><div style="font-size:28px;color:#4fd1ff">漆皮边界（距顶 10 mm）</div>`,
+    [aEdge[0] + 165, aEdge[1] - 16], `opacity:${lOp};text-align:center`);
+  const ring = [[-1.09, 90, -1.69], [1.09, 90, -1.69], [1.09, 90, 1.69], [-1.09, 90, 1.69], [-1.09, 90, -1.69]].map((p) => proj(...p));
+  svgEl('ring', 'polyline', { points: pts(ring), stroke: '#4fd1ff', 'stroke-width': 3, 'stroke-dasharray': '10 8', fill: 'none', opacity: lOp });
+  drawChart(simT, hudOp);
+
+  // summary
+  const sumOp = seg(t, 28.6, 29.3);
+  $('summaryL').style.opacity = sumOp;
+  $('summary').style.transform = `translateY(${60 * (1 - sumOp)}px)`;
+  $('sTmax').textContent = meta.Tmax_overall.toFixed(0);
+  $('sMelt').textContent = meta.melt_depth_max.toFixed(1);
+  $('sEdge').textContent = meta.T_edge_max.toFixed(0);
+  $('s80').textContent = meta.T_80_max.toFixed(0);
+
+  claudeUI(t);
+  mascot(t);
+  drawSpectrum(t);
+  $('spec').style.opacity = 0.9;
+  renderer.render(scene, camera);
+};
+window.META = { FPS, DURATION };
+window.render(0);
+window.READY = true;
+</script>
+</body>
+</html>
