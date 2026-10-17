@@ -1,0 +1,65 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Laptop frame</title>
+<style>html,body{margin:0;width:1920px;height:1080px;background:transparent;overflow:hidden}</style></head>
+<body><canvas id="c" width="1920" height="1080"></canvas>
+<script>
+// ThinkPad-style laptop shell around a 1376x860 screen at (272, 44). ?glare draws only the screen reflection.
+const g = document.getElementById('c').getContext('2d');
+const SX = 272, SY = 44, SW = 1376, SH = 860;
+const glareOnly = location.search.includes('glare');
+const rr = (x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); };
+if (glareOnly) {
+  const gr = g.createLinearGradient(SX, SY, SX + SW * 0.6, SY + SH);
+  gr.addColorStop(0, 'rgba(255,255,255,.10)'); gr.addColorStop(0.35, 'rgba(255,255,255,.03)'); gr.addColorStop(0.36, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(SX, SY, SW, SH);
+} else {
+  // desk + soft light
+  const bg = g.createRadialGradient(960, 420, 100, 960, 540, 1200);
+  bg.addColorStop(0, '#3b3a38'); bg.addColorStop(1, '#121211');
+  g.fillStyle = bg; g.fillRect(0, 0, 1920, 1080);
+  // base (seen slightly from above)
+  const by0 = 944, by1 = 1080, tw = 1500, bw = 1800;
+  g.beginPath(); g.moveTo(960 - tw / 2, by0); g.lineTo(960 + tw / 2, by0); g.lineTo(960 + bw / 2, by1); g.lineTo(960 - bw / 2, by1); g.closePath();
+  const bgr = g.createLinearGradient(0, by0, 0, by1); bgr.addColorStop(0, '#202020'); bgr.addColorStop(1, '#161616');
+  g.fillStyle = bgr; g.fill();
+  // keyboard rows in perspective
+  const rows = [[956, 966], [970, 981], [985, 997], [1001, 1014], [1018, 1032]];
+  rows.forEach(([y0, y1], r) => {
+    const f0 = (y0 - by0) / (by1 - by0), f1 = (y1 - by0) / (by1 - by0);
+    const w0 = (tw + (bw - tw) * f0) * 0.78, w1 = (tw + (bw - tw) * f1) * 0.78;
+    const n = 15 - (r === 4 ? 6 : 0);
+    for (let k = 0; k < n; k++) {
+      const a0 = -w0 / 2 + (w0 / n) * k, a1 = a0 + w0 / n - 6, b0 = -w1 / 2 + (w1 / n) * k, b1 = b0 + w1 / n - 6;
+      const spaceBar = r === 4 && k === 4;
+      g.beginPath(); g.moveTo(960 + a0, y0); g.lineTo(960 + (spaceBar ? a1 + w0 / n * 2 : a1), y0); g.lineTo(960 + (spaceBar ? b1 + w1 / n * 2 : b1), y1); g.lineTo(960 + b0, y1); g.closePath();
+      g.fillStyle = '#0c0c0c'; g.fill(); g.strokeStyle = 'rgba(255,255,255,.07)'; g.stroke();
+      if (spaceBar) k += 2;
+    }
+  });
+  // red pointing stick
+  g.beginPath(); g.arc(960, 1010, 7, 0, Math.PI * 2); g.fillStyle = '#e2231a'; g.fill();
+  g.beginPath(); g.arc(958, 1008, 2.5, 0, Math.PI * 2); g.fillStyle = 'rgba(255,255,255,.35)'; g.fill();
+  // three mouse buttons with red stripes + touchpad edge
+  const bx = 960 - 230, bwid = 460, byb = 1042;
+  [[0, 150], [155, 150], [310, 150]].forEach(([o, w]) => { rr(bx + o, byb, w, 16, 4); g.fillStyle = '#101010'; g.fill(); });
+  g.fillStyle = '#e2231a'; g.fillRect(bx + 4, byb + 2, 2, 12); g.fillRect(bx + bwid - 6, byb + 2, 2, 12);
+  g.fillStyle = '#e2231a'; g.fillRect(bx + 150 + 6, byb + 2, 2, 12); g.fillRect(bx + 305 - 2, byb + 2, 2, 12);
+  rr(960 - 260, 1064, 520, 40, 8); g.fillStyle = '#191919'; g.fill(); g.strokeStyle = 'rgba(255,255,255,.06)'; g.stroke();
+  // hinge
+  rr(960 - 690, 934, 1380, 14, 6); g.fillStyle = '#0a0a0a'; g.fill();
+  // lid
+  rr(SX - 26, SY - 32, SW + 52, SH + 66, 16);
+  const lg = g.createLinearGradient(0, SY - 32, 0, SY + SH + 34); lg.addColorStop(0, '#1d1d1d'); lg.addColorStop(1, '#121212');
+  g.fillStyle = lg; g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 2; g.stroke();
+  // screen recess
+  rr(SX - 4, SY - 4, SW + 8, SH + 8, 4); g.fillStyle = '#050505'; g.fill();
+  // webcam with privacy shutter
+  rr(960 - 26, SY - 22, 52, 12, 6); g.fillStyle = '#0a0a0a'; g.fill();
+  g.beginPath(); g.arc(960, SY - 16, 4, 0, Math.PI * 2); g.fillStyle = '#1e2a3a'; g.fill();
+  g.beginPath(); g.arc(984, SY - 16, 2, 0, Math.PI * 2); g.fillStyle = '#2b2b2b'; g.fill();
+  // red accent dot on the bottom bezel (no brand text)
+  g.beginPath(); g.arc(SX + 40, SY + SH + 17, 3.5, 0, Math.PI * 2); g.fillStyle = '#e2231a'; g.fill();
+}
+window.READY = true;
+</script></body></html>

@@ -1,4 +1,7 @@
 node_modules/
 frames/
+frames_pc/
 preview/
-render.log
+render*.log
+laptop.png
+glare.png

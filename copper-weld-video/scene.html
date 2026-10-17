@@ -127,6 +127,20 @@
   #summary .note { font-size: 22px; color: #7d8590; margin-top: 10px; line-height: 1.5; }
   #spec { position: absolute; left: 0; bottom: 60px; opacity: .85; }
 
+  /* ---------- laptop (landscape) layout ---------- */
+  body.pc #cbar { top: 260px; height: 520px; left: 40px; } body.pc #cbarT { top: 222px; left: 40px; } body.pc .tick { left: 88px; }
+  body.pc .hTitle { top: 24px; font-size: 44px; } body.pc .hSub { top: 86px; font-size: 22px; }
+  body.pc #simt { top: 130px; left: 40px; font-size: 34px; } body.pc #tag { top: 180px; left: 40px; font-size: 24px; }
+  body.pc #chart { left: auto; right: 40px; top: auto; bottom: 40px; }
+  body.pc #summary { left: auto; right: 40px; width: 660px; top: 170px; font-size: 25px; padding: 26px 32px; }
+  body.pc #summary h2 { font-size: 36px; } body.pc #summary .note { font-size: 19px; }
+  body.pc #anOutline { height: 394px; overflow: hidden; } body.pc #anTree { font-size: 17px; line-height: 1.5; }
+  body.pc #anDetails { top: 600px; bottom: 260px; } body.pc #anGraph { height: 260px; }
+  body.pc #solveDlg { left: 900px; top: 420px; }
+  body.pc #spec { display: none; }
+  body.pc #ccBody { padding: 30px 60px; } body.pc #ccPrompt { min-height: 90px; } body.pc #ccLog { margin-top: 20px; }
+  body.pc #effort { margin-top: 20px; }
+
   /* ---------- computer use overlay ---------- */
   #cuBorder { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 6px #d97757, inset 0 0 50px rgba(217,119,87,.55); }
   #cuPill { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: #1f1e1d; color: #f5e6dc; border: 2px solid #d97757;
@@ -250,7 +264,26 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-const VW = 1080, VH = 1920, FPS = 30, DURATION = 42;
+const PC = new URLSearchParams(location.search).has('pc');      // laptop version: 1600 x 1000 landscape screen
+const VW = PC ? 1600 : 1080, VH = PC ? 1000 : 1920, FPS = 30, DURATION = 42;
+if (PC) document.body.classList.add('pc');
+document.documentElement.style.width = document.body.style.width = `${VW}px`;
+document.documentElement.style.height = document.body.style.height = `${VH}px`;
+for (const id of ['gl', 'ov', 'fx']) { const e = document.getElementById(id); e.setAttribute('width', VW); e.setAttribute('height', VH); }
+document.getElementById('ov').setAttribute('viewBox', `0 0 ${VW} ${VH}`);
+document.getElementById('anChart').setAttribute('width', VW);
+document.getElementById('anChart').setAttribute('height', PC ? 210 : 250);
+if (PC) { const c = document.getElementById('chart'); c.setAttribute('width', 560); c.setAttribute('height', 250); }
+// layout positions that differ between phone and laptop
+const LAY = PC ? {
+  cbTop: 260, cbH: 520, aTop: [1060, 210], aEdge: [1060, 470], aK: [1050, 330],
+  swStart: [800, 860], solveSeat: [1180, 422], weldSpot: [330, 760], secSpot: [330, 800], chute: [1150, 80],
+  cuLogTop: [700, 220], cursor0: [800, 700], rot: [[760, 620], [960, 580]], camZoom: { weld: 0.75, sec: 0.55, end: 0.8 },
+} : {
+  cbTop: 400, cbH: 820, aTop: [640, 360], aEdge: [640, 1020], aK: [700, 700],
+  swStart: [640, 1500], solveSeat: [900, 762], weldSpot: [300, 1250], secSpot: [300, 1420], chute: [720, 200],
+  cuLogTop: [1585, 1330], cursor0: [700, 1300], rot: [[640, 1150], [860, 1080]], camZoom: {},
+};
 const $ = (id) => document.getElementById(id);
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const smooth = (x) => { x = clamp(x); return x * x * (3 - 2 * x); };
@@ -369,13 +402,25 @@ const meshLines = (() => {
   l.userData.n = segs.length; scene.add(l); return l;
 })();
 
-// weld bead (dome)
-const beadGeo = new THREE.SphereGeometry(1, 40, 14, 0, Math.PI * 2, 0, Math.PI / 2);
-beadGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(beadGeo.attributes.position.count * 3), 3));
+// weld bead: fused collar over the whole 4.0 x 3.2 end (covers the corners) + domed cap
+const BA = 2.12, BB = 1.72, BEAD_DOME = 1.3, BEAD_BASE = 100.15;
+const domeGeo = new THREE.PlaneGeometry(2 * BA, 2 * BB, 44, 36).rotateX(-Math.PI / 2);
+{
+  const pp = domeGeo.attributes.position;
+  for (let v = 0; v < pp.count; v++) {
+    const x = pp.getX(v), z = pp.getZ(v);
+    pp.setY(v, Math.pow(Math.max(0, 1 - (x / BA) ** 2), 0.4) * Math.pow(Math.max(0, 1 - (z / BB) ** 2), 0.4));
+  }
+  domeGeo.computeVertexNormals();
+}
+const collarGeo = new THREE.BoxGeometry(2 * BA, 0.6, 2 * BB, 22, 1, 18);
 const beadHeatMat = new THREE.MeshBasicMaterial({ vertexColors: true });
 const beadCuMat = new THREE.MeshStandardMaterial({ color: 0xd98a58, metalness: 0.85, roughness: 0.32, envMapIntensity: 2.2 });
-const bead = new THREE.Mesh(beadGeo, beadHeatMat);
-bead.position.set(0, 100, 0); scene.add(bead);
+const dome = new THREE.Mesh(domeGeo, beadHeatMat), collar = new THREE.Mesh(collarGeo, beadHeatMat);
+collar.position.set(0, BEAD_BASE - 0.3, 0);
+dome.position.set(0, BEAD_BASE, 0);
+const beadParts = [dome, collar];
+for (const m of beadParts) { m.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(m.geometry.attributes.position.count * 3), 3)); scene.add(m); }
 
 function radialTex(stops) {
   const c = document.createElement('canvas'); c.width = c.height = 256;
@@ -420,7 +465,7 @@ function cmap(s, out) {
 }
 $('cbar').style.background = `linear-gradient(to top, ${CMAP.map(([s, c]) => `#${c.getHexString()} ${s * 100}%`).join(',')})`;
 $('ticks').innerHTML = [[25, '25'], [100, '100'], [400, '400'], [1083, '熔点 1083'], [2562, '沸点 2562']].map(([T, s]) =>
-  `<div class="tick" style="top:${400 + 820 * (1 - sOf(T))}px">${s}</div>`).join('');
+  `<div class="tick" style="top:${LAY.cbTop + LAY.cbH * (1 - sOf(T))}px">${s}</div>`).join('');
 
 function simFrame(simT) {
   const ts = P.t; let i = 0;
@@ -442,13 +487,15 @@ function paint(simT, mode) {
     col[v * 3] = c.r * vShade[v]; col[v * 3 + 1] = c.g * vShade[v]; col[v * 3 + 2] = c.b * vShade[v];
   }
   heatGeo.attributes.color.needsUpdate = true;
-  const bp = beadGeo.attributes.position, bc = beadGeo.attributes.color.array;
-  for (let v = 0; v < bp.count; v++) {
-    const c = colorFor(Tcell(f, u, cellOf(bp.getX(v) * 2, bp.getZ(v) * 1.6, 99.9)), mode, Tmx);
-    const sh = 0.75 + 0.25 * bp.getY(v);
-    bc[v * 3] = c.r * sh; bc[v * 3 + 1] = c.g * sh; bc[v * 3 + 2] = c.b * sh;
+  for (const m of beadParts) {
+    const bp = m.geometry.attributes.position, bn = m.geometry.attributes.normal, bc = m.geometry.attributes.color.array;
+    for (let v = 0; v < bp.count; v++) {
+      const c = colorFor(Tcell(f, u, cellOf(bp.getX(v), bp.getZ(v), 99.9)), mode, Tmx);
+      const sh = 0.72 + 0.28 * Math.max(bn.getY(v), 0);
+      bc[v * 3] = c.r * sh; bc[v * 3 + 1] = c.g * sh; bc[v * 3 + 2] = c.b * sh;
+    }
+    m.geometry.attributes.color.needsUpdate = true;
   }
-  beadGeo.attributes.color.needsUpdate = true;
   const sp = secGeo.attributes.position, sc = secGeo.attributes.color.array;
   for (let v = 0; v < sp.count; v++) {
     const x = sp.getX(v), y = sp.getY(v);
@@ -482,10 +529,12 @@ const KEYS = [
 function setCamera(t) {
   let i = 0; while (i < KEYS.length - 2 && KEYS[i + 1][0] <= t) i++;
   const [ta, pa, ga] = KEYS[i], [tb, pb, gb] = KEYS[i + 1], u = seg(t, ta, tb);
-  camera.position.set(...pa.map((x, k) => lerp(x, pb[k], u)));
-  camera.lookAt(new THREE.Vector3(...ga.map((x, k) => lerp(x, gb[k], u))));
+  const tgt = new THREE.Vector3(...ga.map((x, k) => lerp(x, gb[k], u)));
+  const z = LAY.camZoom, zf = t >= S.end ? z.end : t >= S.sec ? z.sec : t >= S.weld ? z.weld : 1;
+  camera.position.set(...pa.map((x, k) => lerp(x, pb[k], u))).sub(tgt).multiplyScalar(zf || 1).add(tgt);
+  camera.lookAt(tgt);
   // keep the model centred in the free graphics area of each UI
-  const ox = t < S.ans ? -160 : t < S.weld ? -165 : 0;
+  const ox = t < S.ans ? -160 : t < S.weld ? -165 : (PC && t >= S.end) ? 330 : 0;
   const oy = t < S.ans ? -90 : t < S.weld ? 40 : 0;
   camera.setViewOffset(VW, VH, ox, oy, VW, VH);
   camera.updateMatrixWorld();
@@ -548,11 +597,12 @@ function ansDetails(t) {
 }
 const anChart = $('anChart'), acg = anChart.getContext('2d');
 function drawAnChart(prog) {
-  acg.clearRect(0, 0, 1080, 250); acg.fillStyle = '#fff'; acg.fillRect(0, 0, 1080, 250);
-  const L = 80, R = 40, T = 20, B = 40, X = (s) => L + (1080 - L - R) * s / 3, Y = (v) => 250 - B - (250 - B - T) * v / 2600;
+  const AW = anChart.width, AH = anChart.height;
+  acg.clearRect(0, 0, AW, AH); acg.fillStyle = '#fff'; acg.fillRect(0, 0, AW, AH);
+  const L = 80, R = 40, T = 20, B = 40, X = (s) => L + (AW - L - R) * s / 3, Y = (v) => AH - B - (AH - B - T) * v / 2600;
   acg.strokeStyle = '#d5dbe3'; acg.lineWidth = 1; acg.font = '18px monospace'; acg.fillStyle = '#555';
-  for (const v of [0, 1000, 2000]) { acg.beginPath(); acg.moveTo(L, Y(v)); acg.lineTo(1080 - R, Y(v)); acg.stroke(); acg.fillText(v, 12, Y(v) + 6); }
-  for (const s of [0, 1, 2, 3]) acg.fillText(s + ' s', X(s) - 14, 240);
+  for (const v of [0, 1000, 2000]) { acg.beginPath(); acg.moveTo(L, Y(v)); acg.lineTo(AW - R, Y(v)); acg.stroke(); acg.fillText(v, 12, Y(v) + 6); }
+  for (const s of [0, 1, 2, 3]) acg.fillText(s + ' s', X(s) - 14, AH - 10);
   const tEnd = 3 * prog;
   [['Tmax', '#e74c3c'], ['T_edge', '#2f80ed']].forEach(([k, c]) => {
     acg.strokeStyle = c; acg.lineWidth = 3; acg.beginPath();
@@ -568,7 +618,7 @@ const chart = $('chart'), cg = chart.getContext('2d');
 function drawChart(simT, op) {
   chart.style.opacity = op;
   if (op <= 0) return;
-  const W = 980, H = 300, L = 90, B = 50, T = 20, R = 20;
+  const W = chart.width, H = chart.height, L = 90, B = 50, T = 20, R = 20;
   cg.clearRect(0, 0, W, H); cg.fillStyle = 'rgba(10,16,24,.75)'; cg.fillRect(0, 0, W, H);
   cg.strokeStyle = 'rgba(140,190,210,.25)'; cg.lineWidth = 1; cg.font = '22px monospace'; cg.fillStyle = '#8fb6c8';
   const X = (s) => L + (W - L - R) * s / 3, Y = (v) => H - B - (H - B - T) * v / 2700;
@@ -581,7 +631,7 @@ function drawChart(simT, op) {
   };
   line('Tmax', '#ffb340'); line('T_edge', '#4fd1ff'); line('T_80', '#9b8cff');
   cg.font = 'bold 24px "WenQuanYi Zen Hei"';
-  [['最高温', '#ffb340'], ['漆皮边界', '#4fd1ff'], ['距顶 20 mm', '#9b8cff']].forEach(([n, c], i) => { cg.fillStyle = c; cg.fillRect(L + 20 + i * 250, T + 8, 26, 8); cg.fillText(n, L + 54 + i * 250, T + 20); });
+  [['最高温', '#ffb340'], ['漆皮边界', '#4fd1ff'], ['距顶 20 mm', '#9b8cff']].forEach(([n, c], i) => { const st = (W - L) / 3.3; cg.fillStyle = c; cg.fillRect(L + 20 + i * st, T + 8, 26, 8); cg.fillText(n, L + 54 + i * st, T + 20); });
 }
 
 // ---------------------------------------------------------------- spectrum + confetti
@@ -589,7 +639,7 @@ const spec = $('spec'), sg = spec.getContext('2d');
 function drawSpectrum(t) {
   const bands = spectrum[clamp(Math.round(t * FPS), 0, spectrum.length - 1)];
   sg.clearRect(0, 0, 1080, 80);
-  const n = bands.length, bw = 1080 / n;
+  const n = bands.length, bw = 1080 / n;  // phone only (hidden on the laptop version)
   bands.forEach((v, i) => { sg.fillStyle = `hsl(${190 - 150 * i / n},85%,60%)`; const h = 5 + v * 70; for (let y = 0; y < h; y += 8) sg.fillRect(i * bw + 3, 76 - y - 5, bw - 6, 5); });
 }
 const fg = $('fx').getContext('2d');
@@ -612,16 +662,17 @@ const BUB = [
   [31.6, 33.6, '看，这就是钥匙孔'], [33.8, 35.8, '熔深 2.5 mm，焊透 ✓'], [38.4, 42, '焊好啦！✓'],
 ];
 function mascotPose(t) {
-  const o = { ps: 9, x: 142, y: 268, walk: false, legFrame: Math.floor(t * 8) % 2, blink: (t % 2.7) < 0.12 };
+  const wr = document.querySelector('#ccWelcome > div').getBoundingClientRect();
+  const o = { ps: 9, x: wr.left + wr.width / 2, y: wr.bottom - 4, walk: false, legFrame: Math.floor(t * 8) % 2, blink: (t % 2.7) < 0.12 };
   const at = (x, y, z) => proj(x, y, z);
   const hop = (u) => -Math.sin(Math.PI * clamp(u)) * 120;
   if (t < S.sw) {
     if (t > 2.45 && t < 3.2) { o.y += hop((t - 2.45) / 0.4) * 0.6 + hop((t - 2.85) / 0.35) * 0.4; o.sparkle = true; o.armsUp = true; }
-    if (t > 4.6) { const u = seg(t, 4.6, 5.4); o.x = lerp(142, 640, u); o.y = lerp(268, 1500, u) + hop(u) * 2.5; }
+    if (t > 4.6) { const u = seg(t, 4.6, 5.4), x0 = o.x, y0 = o.y; o.x = lerp(x0, LAY.swStart[0], u); o.y = lerp(y0, LAY.swStart[1], u) + hop(u) * 2.5; }
     o.ps = lerp(9, 7, seg(t, 4.6, 5.4));
   } else if (t < S.ans) {
     o.ps = 7;
-    if (t < 6.8) { const u = seg(t, S.sw + 0.2, 6.8), sk = at(1, 0, 1.0); o.x = lerp(640, sk[0], u); o.y = lerp(1500, sk[1], u); o.walk = u > 0 && u < 1; }
+    if (t < 6.8) { const u = seg(t, S.sw + 0.2, 6.8), sk = at(1, 0, 1.0); o.x = lerp(LAY.swStart[0], sk[0], u); o.y = lerp(LAY.swStart[1], sk[1], u); o.walk = u > 0 && u < 1; }
     else if (t < 10.6) { [o.x, o.y] = at(1, extrudeH(t), 0.6); if (t > 8.8 && t < 9.8) o.armsUp = true; }
     else if (t < 12.8) { [o.x, o.y] = at(1, 100, 0.6); }
     else if (t < 14.8) { const u = seg(t, 12.8, 13.3), a = at(1, 100, 0.6), b = at(-3.4, 92, 0); o.x = lerp(a[0], b[0], u); o.y = lerp(a[1], b[1], u) + hop(u); }
@@ -629,22 +680,22 @@ function mascotPose(t) {
   } else if (t < S.weld) {
     o.ps = 7; o.hat = true;
     if (t < 19.8) [o.x, o.y] = at(1, 100, 0.6);
-    else { const u = seg(t, 19.8, 20.2), a = at(1, 100, 0.6); o.x = lerp(a[0], 900, u); o.y = lerp(a[1], 762, u) + hop(u); }
+    else { const u = seg(t, 19.8, 20.2), a = at(1, 100, 0.6); o.x = lerp(a[0], LAY.solveSeat[0], u); o.y = lerp(a[1], LAY.solveSeat[1], u) + hop(u); }
     if (t > 21.8) o.armsUp = (t * 4 | 0) % 2 === 0;
   } else if (t < S.sec) {
     o.ps = 7; o.goggles = true;
     const top = at(1.2, 100, 0.6);
     if (t < 23.6) [o.x, o.y] = top;
-    else if (t < 24.1) { const u = (t - 23.6) / 0.5; o.x = lerp(top[0], 300, u); o.y = lerp(top[1], 1250, u) + hop(u) * 1.5; }
-    else if (t < 28.2) { [o.x, o.y] = [300, 1250]; o.hot = (t * 6 | 0) % 2 === 0 && t < 27.4; o.sweat = true; o.sweatPh = (t * 4) % 2; }
-    else { const p = at(-2.6, 90, 1.6), u = seg(t, 28.2, 28.9); o.x = lerp(300, p[0] - 50, u); o.y = lerp(1250, p[1] + 70, u); o.walk = u > 0 && u < 1; }
+    else if (t < 24.1) { const u = (t - 23.6) / 0.5; o.x = lerp(top[0], LAY.weldSpot[0], u); o.y = lerp(top[1], LAY.weldSpot[1], u) + hop(u) * 1.5; }
+    else if (t < 28.2) { [o.x, o.y] = LAY.weldSpot; o.hot = (t * 6 | 0) % 2 === 0 && t < 27.4; o.sweat = true; o.sweatPh = (t * 4) % 2; }
+    else { const p = at(-2.6, 90, 1.6), u = seg(t, 28.2, 28.9); o.x = lerp(LAY.weldSpot[0], p[0] - 50, u); o.y = lerp(LAY.weldSpot[1], p[1] + 70, u); o.walk = u > 0 && u < 1; }
   } else if (t < S.end) {
-    o.ps = 7; o.goggles = true; [o.x, o.y] = [300, 1420];
+    o.ps = 7; o.goggles = true; [o.x, o.y] = LAY.secSpot;
     if (t > 33.8) o.armsUp = (t * 4 | 0) % 2 === 0;
   } else {
     o.ps = 8; o.chute = t < 38.3;
-    const land = at(0, 100.85, 0), u = seg(t, 36.3, 38.3);
-    o.x = lerp(720, land[0], u) + Math.sin(t * 3) * 30 * (1 - u); o.y = lerp(200, land[1], u);
+    const land = at(0, BEAD_BASE + BEAD_DOME, 0), u = seg(t, 36.3, 38.3);
+    o.x = lerp(LAY.chute[0], land[0], u) + Math.sin(t * 3) * 30 * (1 - u); o.y = lerp(LAY.chute[1], land[1], u);
     if (t > 38.3) { o.armsUp = true; o.y += hop(((t - 38.3) * 2) % 1) * 0.4; }
   }
   o.bubble = BUB.find(([a, c]) => t >= a && t < c);
@@ -716,7 +767,7 @@ const ACTS = [
   { t: 13.02, k: 'type', text: '10' },
   { t: 13.9, k: 'click', at: () => proj(-1, 70, 1.6), lb: '外观 · 漆膜' },
   { t: 14.65, k: 'shot' },
-  { t: 15.0, k: 'drag', a: () => [640, 1150], b: () => [860, 1080], dur: 1.5, lb: '旋转视图' },
+  { t: 15.0, k: 'drag', a: () => LAY.rot[0], b: () => LAY.rot[1], dur: 1.5, lb: '旋转视图' },
   { t: 17.3, k: 'click', at: () => elC('.abtn[data-k=mesh]'), lb: '生成网格' },
   { t: 18.7, k: 'shot' },
   { t: 18.86, k: 'click', at: () => elC('.abtn[data-k=bc]'), lb: '热通量' },
@@ -738,7 +789,7 @@ function actPos(a, t) {
 function cursorAt(t) {
   const pa = ACTS.filter((a) => a.at || a.a);
   let i = -1; while (i < pa.length - 1 && pa[i + 1].t <= t) i++;
-  const cur = i >= 0 ? actPos(pa[i], t) : [700, 1300];
+  const cur = i >= 0 ? actPos(pa[i], t) : LAY.cursor0;
   const next = pa[i + 1];
   if (!next) return cur;
   const gap = next.t - (i >= 0 ? pa[i].t + (pa[i].dur || 0) : 5.2);
@@ -788,7 +839,7 @@ function computerUse(t) {
     });
     const lines = done.slice(-5).map((a) => `<div class="ln"><span style="color:#7ec699">⏺</span> computer · ${actLog.get(a)}</div>`).join('');
     setHTML($('cuLog'), `<div class="h">✻ Claude Code · computer use</div>${lines || '<div class="ln">…</div>'}`);
-    $('cuLog').style.top = t < S.ans ? '1585px' : '1330px';
+    $('cuLog').style.top = `${t < S.ans ? LAY.cuLogTop[0] : LAY.cuLogTop[1]}px`;
   }
 }
 
@@ -941,10 +992,12 @@ window.render = (t) => {
   beam.material.opacity = (0.55 + 0.25 * Math.sin(t * 90)) * (inSec ? 0.35 : 1);
   const Tm = probe('Tmax', simT);
   const meltW = Math.max(0, ...P.melt_width_mm.slice(0, simFrame(simT)[0] + 1));
-  const beadH = inWeld ? 0.85 * clamp(meltW / 4) : inEnd ? 0.85 : 0;
-  bead.visible = beadH > 0.02;
-  bead.scale.set(2.05, Math.max(beadH, 0.01), 1.65);
-  bead.material = inEnd ? beadCuMat : beadHeatMat;
+  const beadU = inWeld ? clamp(meltW / 4) : inEnd ? 1 : 0;
+  const beadH = beadU > 0.02 ? BEAD_BASE - 100 + BEAD_DOME * beadU : 0;   // top of the bead above the wire end
+  dome.visible = collar.visible = beadU > 0.02;
+  dome.scale.y = Math.max(BEAD_DOME * beadU, 0.01);
+  collar.scale.set(lerp(0.96, 1, beadU), 1, lerp(0.96, 1, beadU));
+  dome.material = collar.material = inEnd ? beadCuMat : beadHeatMat;
   glow.visible = inWeld && Tm > 300;
   const g = clamp((Tm - 300) / 2200);
   glow.position.set(0, 100.2 + beadH, 0);
@@ -992,12 +1045,12 @@ window.render = (t) => {
   }
   if (inWeld) {
     const lOp = seg(t, S.weld + 0.4, S.weld + 0.8) * (1 - seg(t, S.sec - 0.3, S.sec));
-    const pTop = proj(0, 100 + beadH, 0), aTop = [640, 360];
+    const pTop = proj(0, 100 + beadH, 0), aTop = LAY.aTop;
     svgEl('ldTop', 'polyline', { points: pts([pTop, [aTop[0], aTop[1] + 40], [aTop[0] + 340, aTop[1] + 40]]), stroke: '#ffd7a0', 'stroke-width': 3, fill: 'none', opacity: lOp });
     const melt = probe('melt_depth_mm', simT);
     label('lbTop', `<div class="readout">${Tm.toFixed(0)}<small> ℃</small></div><div style="font-size:27px;color:#ffd7a0">${kh > 0.1 ? `钥匙孔 ${kh.toFixed(1)} mm · ` : ''}${melt > 0.05 ? `熔池 ${melt.toFixed(1)} mm` : '最高温'}</div>`,
       [aTop[0] + 170, aTop[1] - 20], `opacity:${lOp};text-align:center`);
-    const pEdge = proj(2, 90, 1.6), aEdge = [640, 1020], Te = probe('T_edge', simT), warn = Te > 300;
+    const pEdge = proj(2, 90, 1.6), aEdge = LAY.aEdge, Te = probe('T_edge', simT), warn = Te > 300;
     const ec = warn ? '#ffb86b' : '#4fd1ff';
     svgEl('ldEdge', 'polyline', { points: pts([pEdge, [aEdge[0], aEdge[1] + 40], [aEdge[0] + 340, aEdge[1] + 40]]), stroke: ec, 'stroke-width': 3, fill: 'none', opacity: lOp });
     label('lbEdge', `<div style="font:bold 50px monospace;color:${ec}">${Te.toFixed(0)}<small style="font-size:26px"> ℃${warn ? ' ⚠' : ''}</small></div><div style="font-size:27px;color:${ec}">漆皮边界（距顶 10 mm）</div>`,
@@ -1018,7 +1071,7 @@ window.render = (t) => {
       const wob = 0.04 * Math.sin(t * 40);
       const cav = [[-0.48, 100], [-0.3 + wob, 100 - kh * 0.5], [-0.14, 100 - kh * 0.9], [0, 100 - kh], [0.14, 100 - kh * 0.9], [0.3 - wob, 100 - kh * 0.5], [0.48, 100]].map(([x, y]) => proj(x, y, 0.02));
       svgEl('kh', 'polygon', { points: pts(cav), fill: '#120804', stroke: '#fff3c4', 'stroke-width': 5, filter: 'url(#glowF)', opacity: sOp });
-      const tip = proj(0, 100 - kh, 0), aK = [700, 700];
+      const tip = proj(0, 100 - kh, 0), aK = LAY.aK;
       svgEl('khL', 'polyline', { points: pts([tip, [aK[0] - 20, aK[1]], [aK[0] + 300, aK[1]]]), stroke: '#fff3c4', 'stroke-width': 3, fill: 'none', opacity: sOp });
       label('khT', `钥匙孔 ${kh.toFixed(1)} mm`, [aK[0] + 140, aK[1] - 30], `opacity:${sOp};font-size:34px;color:#fff3c4;font-weight:bold`);
       [-1, 1].forEach((sd) => {

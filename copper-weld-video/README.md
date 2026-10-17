@@ -1,6 +1,8 @@
 # 两根扁铜线激光焊接热仿真 · 竖屏短视频
 
-成片：`copper_weld_sim.mp4`（1080×1920，30 fps，42 s，带原创背景音乐）
+成片（30 fps，42 s，带原创背景音乐）：
+- `copper_weld_sim.mp4`：手机竖屏 1080×1920
+- `copper_weld_sim_laptop.mp4`：电脑横屏 1920×1080，画面装在 ThinkPad 风格的笔记本外壳里（黑色磨砂 A 面、摄像头遮挡片、红色指点杆、红条三键；没有放品牌标志）
 
 ## 分镜
 
@@ -11,7 +13,7 @@
 | 17–23 s | 仿 Mechanical：划网格 64,000 节点 → 热通量 / 对流 / 夹具温度边界 → 求解进度 → 分段彩色云图 |
 | 23–31 s | 温度 · 激光焊接：光束、钥匙孔开口、熔池波纹、火花与蒸汽羽流、焊珠长出、漆皮边界温度、温度曲线 |
 | 31–36 s | 熔池 · 钥匙孔中截面：钥匙孔腔体、1083 ℃ 熔池边界、熔池回流（示意）、熔深 / 熔宽、两根熔合 |
-| 36–42 s | 焊好的铜线展示 + 结论卡片 |
+| 36–42 s | 焊好的铜线展示（焊帽完整盖住两根线端面和四个角）+ 结论卡片 |
 | 全程 | Claude Code 像素小人：被拉伸顶上天、戴安全帽等求解、戴护目镜躲激光、热到冒汗、跳伞落到焊珠上撒花 |
 
 ## 仿真模型（`sim.py`）
@@ -37,6 +39,13 @@ NODE_PATH=$(npm root -g) node record.cjs 9 25 33   # 预览单帧 → preview/
 NODE_PATH=$(npm root -g) node record.cjs           # 逐帧渲染 → frames/
 ffmpeg -framerate 30 -i frames/f%04d.jpg -i data/music.wav -c:v libx264 -pix_fmt yuv420p \
   -crf 19 -c:a aac -b:a 192k -shortest copper_weld_sim.mp4
+
+# 电脑版：横屏 1600×1000 画面 → 套笔记本外壳
+NODE_PATH=$(npm root -g) node frame.cjs                    # laptop.html → laptop.png + glare.png
+MODE=pc NODE_PATH=$(npm root -g) node record.cjs           # → frames_pc/
+ffmpeg -loop 1 -framerate 30 -i laptop.png -framerate 30 -i frames_pc/f%04d.jpg -loop 1 -framerate 30 -i glare.png -i data/music.wav \
+  -filter_complex "[1]scale=1376:860:flags=lanczos[s];[0][s]overlay=272:44:shortest=1[a];[a][2]overlay=shortest=1,format=yuv420p[v]" \
+  -map "[v]" -map 3:a -t 42 -c:v libx264 -crf 19 -c:a aac -b:a 192k copper_weld_sim_laptop.mp4
 ```
 
 改参数：功率、光斑、钥匙孔深度、脉冲时长在 `sim.py` 顶部；分镜时间在 `scene.html` 的 `S`，镜头在 `KEYS`，小人台词在 `BUB`，小人动作在 `mascotPose()`。

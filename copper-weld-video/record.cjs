@@ -1,10 +1,14 @@
-// Usage: node record.cjs [t1 t2 ...]   — with times: write preview stills; without: render all frames.
+// Usage: [MODE=pc] node record.cjs [t1 t2 ...]   — with times: write preview stills; without: render all frames.
+// MODE=pc renders the 1600x1000 laptop-screen layout into frames_pc/ (phone layout: 1080x1920 into frames/).
 const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
 const ROOT = __dirname;
+const PC = process.env.MODE === 'pc';
+const [VW, VH] = PC ? [1600, 1000] : [1080, 1920];
+const PORT = PC ? 8124 : 8123;
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.bin': 'application/octet-stream' };
 const server = http.createServer((req, res) => {
   const p = path.join(ROOT, decodeURIComponent(req.url.split('?')[0]));
@@ -14,12 +18,12 @@ const server = http.createServer((req, res) => {
 });
 
 (async () => {
-  await new Promise((r) => server.listen(8123, r));
+  await new Promise((r) => server.listen(PORT, r));
   const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-  const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
+  const page = await browser.newPage({ viewport: { width: VW, height: VH } });
   page.on('console', (m) => console.log('[page]', m.text()));
   page.on('pageerror', (e) => console.error('[pageerror]', e.message));
-  await page.goto('http://localhost:8123/scene.html');
+  await page.goto(`http://localhost:${PORT}/scene.html${PC ? '?pc' : ''}`);
   await page.waitForFunction(() => window.READY === true, null, { timeout: 60000 });
 
   const times = process.argv.slice(2).map(Number);
@@ -27,11 +31,11 @@ const server = http.createServer((req, res) => {
     fs.mkdirSync(path.join(ROOT, 'preview'), { recursive: true });
     for (const t of times) {
       await page.evaluate((t) => window.render(t), t);
-      await page.screenshot({ path: path.join(ROOT, 'preview', `t${t.toFixed(1)}.jpg`), type: 'jpeg', quality: 85 });
+      await page.screenshot({ path: path.join(ROOT, 'preview', `${PC ? 'pc_' : ''}t${t.toFixed(1)}.jpg`), type: 'jpeg', quality: 85 });
     }
   } else {
     const { FPS, DURATION } = await page.evaluate(() => window.META);
-    const dir = path.join(ROOT, 'frames');
+    const dir = path.join(ROOT, PC ? 'frames_pc' : 'frames');
     fs.mkdirSync(dir, { recursive: true });
     const n = FPS * DURATION;
     const t0 = Date.now();
