@@ -225,8 +225,8 @@
       <div id="effTrack"><div id="effFill"></div></div></div>
     <div id="ccLog">
       <div><span class="orange" id="spin">✻</span> Cogitating… <span class="grey" id="ccTok"></span></div>
-      <div><span class="green">⏺</span> Write(<b>wires_sw.py</b>)</div>
-      <div class="grey">　⎿ 2 × 扁铜线 2×3.2×100 · 并排 · 剥漆 10 mm</div>
+      <div><span class="green">⏺</span> Read(<b>Mastersthesis_Shaikh.pdf</b>)</div>
+      <div class="grey">　⎿ 环芯 1070 nm · C1 2000+4000 W · 椭圆 300 mm/s</div>
       <div><span class="green">⏺</span> computer-use 已连接 · 接管桌面</div>
       <div><span class="green">⏺</span> computer(<b>screenshot</b>)</div>
       <div><span class="orange">⏺</span> computer(<b>double_click</b> 「CAD」) → 开始建模</div>
@@ -238,10 +238,12 @@
   <div id="summary">
     <h2>✓ 仿真结论</h2>
     <div><span class="k">几何</span>　2 × (2.0×3.2×100 mm) 并排 · 剥漆 10 mm</div>
-    <div><span class="k">钥匙孔</span>　深 <b id="sKh"></b> mm · 峰值 <b id="sTmax"></b> ℃（孔壁≈沸点）</div>
+    <div><span class="k">工艺</span>　环芯激光 C1/C2/C3 · 椭圆扫描 300 mm/s · <b id="sTw"></b> s</div>
+    <div><span class="k">能量</span>　输入 <b id="sEin"></b> kJ · 吸收 <b id="sEab"></b> kJ（<b id="sEta"></b> %）</div>
+    <div><span class="k">钥匙孔</span>　深 <b id="sKh"></b> mm（C1）· 峰值 <b id="sTmax"></b> ℃</div>
     <div><span class="k">熔池</span>　熔深 <b id="sMelt"></b> mm · 熔宽 <b id="sWid"></b> mm · 两根全熔合 ✓</div>
     <div class="warn"><span class="k">漆皮边界</span>　峰值 <b id="sEdge"></b> ℃ ⚠ 建议加夹具散热 / 缩短脉冲</div>
-    <div class="note">3D 瞬态导热 · 64,000 节点 · 高斯面热源 + 锥形体热源（钥匙孔）· 计入熔化潜热 · 接触热导 3×10⁴ W/m²K，熔合后完全导热<br>熔池流动箭头为示意，未计蒸发反冲与流体力学</div>
+    <div class="note">工艺参数参考 Shaikh, LUT 硕士论文 2026（TruFiber 6000 P, Table 8）· 3D 瞬态导热 128,000 节点 · 吸收率 固 5 % / 液 14 % / 钥匙孔 60 % · 功率密度触发钥匙孔 · 计入熔化潜热<br>熔池流动箭头为示意，未计蒸发反冲与流体力学</div>
   </div>
 </div>
 
@@ -301,7 +303,15 @@ const meta = await (await fetch('data/meta.json')).json();
 const field = new Uint16Array(await (await fetch('data/field.bin')).arrayBuffer());
 const spectrum = await (await fetch('data/spectrum.json')).json();
 const { nx, ny, nz } = meta, P = meta.probes, NCELL = nx * ny * nz;
-const HW = meta.W / 2, HD = meta.D / 2;
+const HW = meta.W / 2, HD = meta.D / 2, DZ = meta.dz_mm, TW = meta.t_weld;
+// beam position on the end face (mm): constant-speed ellipse per weld cycle (from sim schedule)
+function beamAt(simT) {
+  for (const c of meta.schedule) if (simT >= c.t0 && simT < c.t1) {
+    const s = (simT - c.t0) * meta.v_scan, ph = 2 * Math.PI * (s / c.perim_mm);
+    return { c, x: c.a_mm * Math.cos(ph), z: c.b_mm * Math.sin(ph), dir: -Math.sin(ph), loop: Math.floor(s / c.perim_mm) + 1 };
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------- pixel mascot
 const BODY = ['..oooooooo..', '..oooooooo..', '..okooooko..', '..okooooko..', 'oooooooooooo', 'oooooooooooo', '..oooooooo..', '..oooooooo..'];
@@ -365,7 +375,7 @@ const clipPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
 const heat = new THREE.Mesh(heatGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, side: THREE.DoubleSide }));
 scene.add(heat);
 const cellOf = (x, z, y) => {
-  const i = clamp(Math.floor((x + HW) / 0.2), 0, nx - 1), j = clamp(Math.floor((z + HD) / 0.2), 0, ny - 1), k = clamp(Math.floor(y / 0.5), 0, nz - 1);
+  const i = clamp(Math.floor((x + HW) / 0.2), 0, nx - 1), j = clamp(Math.floor((z + HD) / 0.2), 0, ny - 1), k = clamp(Math.floor(y / DZ), 0, nz - 1);
   return (i * ny + j) * nz + k;
 };
 const vIdx = new Int32Array(vcount), vShade = new Float32Array(vcount);
@@ -431,9 +441,11 @@ function radialTex(stops) {
 const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex([[0, 'rgba(255,255,240,1)'], [0.25, 'rgba(255,200,90,.8)'], [0.6, 'rgba(255,90,20,.25)'], [1, 'rgba(255,60,0,0)']]),
   blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
 scene.add(glow);
-const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.5, 5, 24, 1, true).translate(0, 102.5, 0),
-  new THREE.MeshBasicMaterial({ color: 0x9fe8ff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
-scene.add(beam);
+const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.3, 5, 24, 1, true).translate(0, 102.5, 0),          // core
+  new THREE.MeshBasicMaterial({ color: 0xe8fbff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+const beamRing = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.75, 5, 32, 1, true).translate(0, 102.5, 0),  // ring
+  new THREE.MeshBasicMaterial({ color: 0x5fc8ff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+scene.add(beam, beamRing);
 const mouth = new THREE.Mesh(new THREE.CircleGeometry(0.42, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x0c0603 }));
 const mouthRim = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.62, 40).rotateX(-Math.PI / 2),
   new THREE.MeshBasicMaterial({ color: 0xfff3c4, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
@@ -508,8 +520,8 @@ function poolProfile(simT) {
   const [f, u] = simFrame(simT), out = [];
   for (let i = 0; i < nx; i++) {
     let d = 0;
-    for (let k = nz - 1; k > nz - 12; k--) {
-      if (Tcell(f, u, (i * ny + ny / 2) * nz + k) > 1083) d = (nz - k) * 0.5; else break;
+    for (let k = nz - 1; k > nz - 1 - 6 / DZ; k--) {
+      if (Tcell(f, u, (i * ny + ny / 2) * nz + k) > 1083) d = (nz - k) * DZ; else break;
     }
     out.push([-HW + (i + 0.5) * 0.2, 100 - d, d]);
   }
@@ -592,7 +604,7 @@ const ATREE = [['项目', 0, 0], ['模型 (A4)', 1, 0], ['几何结构 · 铜线
   ['求解 (A6)', 1, 21.8], ['温度', 2, 21.8], ['温度探针 · 漆皮边界', 2, 21.8]];
 function ansDetails(t) {
   if (t < 18.8) return ['"网格"的详细信息', [['物理偏好', '热'], ['单元尺寸', '0.2 mm'], ['顶部加密', '0.5 mm (Z)'], ['节点', Math.round(64000 * seg(t, 17.4, 18.6)).toLocaleString()], ['单元', Math.round(57000 * seg(t, 17.4, 18.6)).toLocaleString()]]];
-  if (t < 20.0) return ['"热通量"的详细信息', [['范围', '剥漆顶面'], ['类型', '高斯面 + 锥形体热源'], ['吸收功率', `${meta.P_abs} W`], ['钥匙孔深', `${meta.keyhole_max} mm`], ['作用时间', `${meta.t_on} s`]]];
+  if (t < 20.0) return ['"热通量"的详细信息', [['范围', '剥漆顶面'], ['类型', '移动环芯热源 1070 nm'], ['C1 / C2 / C3', '2000+4000 / 500+3500 / 40+3500 W'], ['扫描', `椭圆 ${meta.v_scan} mm/s`], ['吸收率', '固 5 / 液 14 / 孔 60 %']]];
   return ['"求解"的详细信息', [['分析', '瞬态热'], ['时间步', '33 μs'], ['终止时间', '3.0 s'], ['状态', t < 21.8 ? '求解中…' : '✔ 已完成']]];
 }
 const anChart = $('anChart'), acg = anChart.getContext('2d');
@@ -657,9 +669,9 @@ function drawFx(t, anchor) {
 // ---------------------------------------------------------------- mascot choreography
 const BUB = [
   [2.6, 4.0, 'MAX！冲 ✦'], [5.8, 7.8, '先画两个 2×3.2'], [8.4, 10.4, '拉伸 100，起飞～'], [11.0, 12.4, '材质：铜 ✓'],
-  [12.8, 14.6, '剥漆 10 mm ✂'], [15.0, 16.8, '两根并好啦'], [17.6, 19.4, '划网格 64,000 节点'], [20.1, 21.7, '求解中… 别催 ⏳'], [21.9, 22.9, '收敛 ✓'],
-  [23.0, 23.7, '要开焊了，闪！'], [24.4, 26.8, '钥匙孔！2500 ℃ 🔥'], [28.4, 30.8, '漆皮边界 400 ℃ ⚠'],
-  [31.6, 33.6, '看，这就是钥匙孔'], [33.8, 35.8, '熔深 2.5 mm，焊透 ✓'], [38.4, 42, '焊好啦！✓'],
+  [12.8, 14.6, '激光剥漆 10 mm ✂'], [15.0, 16.8, '两根并好啦'], [17.6, 19.4, '划网格 64,000 节点'], [20.1, 21.7, '求解中… 别催 ⏳'], [21.9, 22.9, '收敛 ✓'],
+  [23.0, 23.7, '要开焊了，闪！'], [24.4, 26.8, `钥匙孔 ${meta.keyhole_max.toFixed(1)} mm！好烫 🔥`], [28.4, 30.8, `漆皮边界 ${Math.round(meta.T_edge_max)} ℃ ⚠`],
+  [31.6, 33.6, '看，这就是钥匙孔'], [33.8, 35.8, `熔深 ${meta.melt_depth_max.toFixed(1)} mm，焊透 ✓`], [38.4, 42, '焊好啦！✓'],
 ];
 function mascotPose(t) {
   const wr = document.querySelector('#ccWelcome > div').getBoundingClientRect();
@@ -847,13 +859,13 @@ function computerUse(t) {
 function simTimeWeld(t) {
   const tc = t - (S.weld + 0.6);
   if (tc < 0) return 0;
-  if (tc < 4) return meta.t_on * tc / 4;
-  return meta.t_on + (3.0 - meta.t_on) * Math.pow(clamp((tc - 4) / 3.4), 1.6);
+  if (tc < 4) return TW * tc / 4;
+  return TW + (3.0 - TW) * Math.pow(clamp((tc - 4) / 3.4), 1.6);
 }
 function simTimeSec(t) {
   if (t < S.sec + 0.6) return 0.003;
-  if (t < 35.0) return lerp(0.003, meta.t_on, (t - S.sec - 0.6) / (35.0 - S.sec - 0.6));
-  return lerp(meta.t_on, 0.32, seg(t, 35.0, 35.9));
+  if (t < 35.0) return lerp(0.003, TW, (t - S.sec - 0.6) / (35.0 - S.sec - 0.6));
+  return lerp(TW, TW + 0.12, seg(t, 35.0, 35.9));
 }
 function extrudeH(t) {
   if (t < 8.05) return 0;
@@ -962,18 +974,18 @@ window.render = (t) => {
       label(id, `<b style="background:${col};color:#fff;padding:0 8px;margin-right:6px">${txt[0]}</b>${txt.slice(1)}`, [p[0] + dx, p[1] + dy],
         `opacity:${op};transform:translate(0,-50%);background:#fff;color:#222;font-size:22px;padding:4px 10px;border:1px solid ${col}`);
     };
-    bc('bcA', `A热通量: ${meta.P_abs} W`, '#d32f2f', [0, 100, 0], 19.0, 110, -70);
+    bc('bcA', 'A移动热源: 环芯 6 kW', '#d32f2f', [0, 100, 0], 19.0, 110, -70);
     bc('bcB', 'B对流: 25 W/m²·℃', '#f9a825', [2, 92, 1.6], 19.3, 100, 40);
     bc('bcC', 'C温度: 25 ℃ (夹具)', '#1976d2', [-2, 84, 1.6], 19.6, 90, 100);
-    const Tm = meta.probes.Tmax[meta.probes.t.findIndex((x) => x >= meta.t_on)];
+    const Tm = meta.probes.Tmax[meta.probes.t.findIndex((x) => x >= 0.08)];
     setHTML($('anLegend'), t > 21.8
-      ? `<b>A: 瞬态热</b><br>温度<br>类型: 温度　单位: ℃<br>时间: ${meta.t_on} s<div class="bands">${BANDS.slice().reverse().map((c, i) => `<div><i style="background:#${c.getHexString()}"></i>${(Tm - (Tm - 25) * i / 9).toFixed(0)}${i === 0 ? ' 最大' : ''}</div>`).join('')}<div><i style="background:none;border:none"></i>25 最小</div></div>`
+      ? `<b>A: 瞬态热</b><br>温度<br>类型: 温度　单位: ℃<br>时间: 0.08 s<div class="bands">${BANDS.slice().reverse().map((c, i) => `<div><i style="background:#${c.getHexString()}"></i>${(Tm - (Tm - 25) * i / 9).toFixed(0)}${i === 0 ? ' 最大' : ''}</div>`).join('')}<div><i style="background:none;border:none"></i>25 最小</div></div>`
       : `<b>A: 瞬态热</b><br>${t < 18.8 ? '网格' : t < 20 ? '边界条件' : '求解中'}<br>时间: ${t < 20 ? 0 : (3 * prog).toFixed(2)} s`);
   }
 
   // ---- heat mesh
   let simT = 0, mode = null;
-  if (resShown) { simT = meta.t_on; mode = 'bands'; }
+  if (resShown) { simT = 0.08; mode = 'bands'; }
   if (inWeld) { simT = simTimeWeld(t); mode = 'heat'; }
   if (inSec) { simT = simTimeSec(t); mode = 'heat'; }
   heat.visible = !!mode;
@@ -986,10 +998,11 @@ window.render = (t) => {
   joint.material.opacity = inWeld ? 0.35 : 0.6;
 
   // ---- weld effects
-  const on = (inWeld || inSec) && simT > 0.001 && simT < meta.t_on;
+  const bm = (inWeld || inSec) ? beamAt(simT) : null;
+  const on = !!bm;
+  const BX = bm ? bm.x : 0, BZ = bm ? bm.z : 0;
   const kh = probe('keyhole_mm', simT);
-  beam.visible = on;
-  beam.material.opacity = (0.55 + 0.25 * Math.sin(t * 90)) * (inSec ? 0.35 : 1);
+  const coreF = bm ? bm.c.core / 2000 : 0, ringF = bm ? bm.c.ring / 4000 : 0;
   const Tm = probe('Tmax', simT);
   const meltW = Math.max(0, ...P.melt_width_mm.slice(0, simFrame(simT)[0] + 1));
   const beadU = inWeld ? clamp(meltW / 4) : inEnd ? 1 : 0;
@@ -998,31 +1011,42 @@ window.render = (t) => {
   dome.scale.y = Math.max(BEAD_DOME * beadU, 0.01);
   collar.scale.set(lerp(0.96, 1, beadU), 1, lerp(0.96, 1, beadU));
   dome.material = collar.material = inEnd ? beadCuMat : beadHeatMat;
+  // ring-core beam follows the scanner
+  beam.visible = beamRing.visible = on;
+  beam.position.set(BX, beadH, BZ); beamRing.position.copy(beam.position);
+  beam.scale.set(0.35 + 0.65 * coreF, 1, 0.35 + 0.65 * coreF);
+  beam.material.opacity = (0.3 + 0.6 * coreF + 0.1 * Math.sin(t * 90)) * (inSec ? 0.35 : 1);
+  beamRing.material.opacity = 0.3 * ringF * (inSec ? 0.4 : 1);
+  if (inWeld && bm) {
+    const e = []; for (let i = 0; i <= 48; i++) { const a = i / 48 * Math.PI * 2; e.push(proj(bm.c.a_mm * Math.cos(a), 100.05 + beadH, bm.c.b_mm * Math.sin(a))); }
+    svgEl('scanPath', 'polyline', { points: pts(e), stroke: '#9fe8ff', 'stroke-width': 2.5, 'stroke-dasharray': '6 6', fill: 'none', opacity: 0.8 });
+  }
   glow.visible = inWeld && Tm > 300;
   const g = clamp((Tm - 300) / 2200);
-  glow.position.set(0, 100.2 + beadH, 0);
-  glow.scale.setScalar(1.0 + 5 * g * (on ? 1 + 0.1 * Math.sin(t * 60) : 1));
+  glow.position.set(on ? BX : 0, 100.2 + beadH, on ? BZ : 0);
+  glow.scale.setScalar(1.0 + 4 * g * (on ? 1 + 0.1 * Math.sin(t * 60) : 1));
   glow.material.opacity = g;
   mouth.visible = mouthRim.visible = on && inWeld && kh > 0.2;
-  mouth.position.set(0, 100.03 + beadH, 0); mouthRim.position.copy(mouth.position);
+  mouth.position.set(BX, 100.03 + beadH, BZ); mouthRim.position.copy(mouth.position);
+  mouth.scale.setScalar(0.5 + 0.5 * clamp(kh / 1.6)); mouthRim.scale.copy(mouth.scale);
   mouthRim.material.opacity = 0.7 + 0.3 * Math.sin(t * 50);
   ripples.forEach((r, i) => {
     const ph = ((t * 1.6 + i / 3) % 1);
-    r.visible = inWeld && simT > 0.03 && simT < meta.t_on + 0.08;
-    r.position.set(0, 100.02 + beadH * 0.98, 0); r.scale.setScalar(0.5 + ph * 1.4); r.material.opacity = (1 - ph) * 0.6;
+    r.visible = inWeld && on;
+    r.position.set(BX, 100.02 + beadH * 0.98, BZ); r.scale.setScalar(0.4 + ph * 1.2); r.material.opacity = (1 - ph) * 0.6;
   });
   for (const [ps, kind] of [[sparks, 'spark'], [plume, 'plume']]) {
     const arr = ps.geometry.attributes.position.array;
-    ps.visible = on;
+    ps.visible = on && (kind === 'plume' ? kh > 0.1 : true);
     ps.userData.list.forEach((s, i) => {
       const age = ((t * 0.8 + s.birth) % 1) * 1.2;
       if (kind === 'spark') {
-        if (age > s.life) { arr[i * 3 + 1] = -999; return; }
+        if (age > s.life * (0.4 + 0.6 * coreF)) { arr[i * 3 + 1] = -999; return; }
         const sp = 8 + s.s * 20;
-        arr[i * 3] = Math.cos(s.a) * sp * 0.6 * age; arr[i * 3 + 2] = Math.sin(s.a) * sp * 0.6 * age; arr[i * 3 + 1] = 100.3 + beadH + (6 + s.vy * 18) * age - 25 * age * age;
+        arr[i * 3] = BX + Math.cos(s.a) * sp * 0.6 * age; arr[i * 3 + 2] = BZ + Math.sin(s.a) * sp * 0.6 * age; arr[i * 3 + 1] = 100.3 + beadH + (6 + s.vy * 18) * age - 25 * age * age;
       } else {
         const r = 0.15 + age * 1.6 * s.s;
-        arr[i * 3] = Math.cos(s.a + age * 3) * r; arr[i * 3 + 2] = Math.sin(s.a + age * 3) * r; arr[i * 3 + 1] = 100.2 + beadH + age * (4 + s.vy * 4);
+        arr[i * 3] = BX + Math.cos(s.a + age * 3) * r; arr[i * 3 + 2] = BZ + Math.sin(s.a + age * 3) * r; arr[i * 3 + 1] = 100.2 + beadH + age * (4 + s.vy * 4);
       }
     });
     ps.geometry.attributes.position.needsUpdate = true;
@@ -1034,11 +1058,12 @@ window.render = (t) => {
   const hudOp = fade(t, S.weld, S.weld + 0.4, S.end - 0.3, S.end);
   show('hud', hudOp);
   if (hudOp > 0) {
-    $('hTitle').textContent = inSec ? '熔池 · 钥匙孔（中截面）' : '温度 · 激光焊接';
-    $('hSub').textContent = `吸收 ${meta.P_abs} W · 光斑 σ${meta.sig_mm[0]}×${meta.sig_mm[1]} mm · 脉冲 ${meta.t_on} s · 锥形钥匙孔热源`;
+    $('hTitle').textContent = inSec ? '熔池 · 钥匙孔（中截面）' : '温度 · 环芯激光焊接';
+    $('hSub').textContent = `环芯光纤激光 1070 nm · 椭圆扫描 ${meta.v_scan} mm/s · C1→C2→C3 · 参数参考 Shaikh (LUT, 2026)`;
     $('simt').textContent = `t = ${simT.toFixed(3)} s`;
     const tag = $('tag');
-    if (simT < meta.t_on) { tag.textContent = `⚡ 焊接中 · 慢放 ×${inSec ? 23 : 27}`; tag.style.background = '#7a2e12'; tag.style.color = '#ffd7b8'; }
+    if (bm) { tag.textContent = `⚡ ${bm.c.name} 芯 ${bm.c.core} W + 环 ${bm.c.ring} W · 第 ${bm.loop}/${bm.c.loops} 圈 · 慢放 ×${Math.round((inSec ? 3.4 : 4) / TW)}`; tag.style.background = '#7a2e12'; tag.style.color = '#ffd7b8'; }
+    else if (simT < TW) { tag.textContent = '⚡ 振镜跳转'; tag.style.background = '#7a2e12'; tag.style.color = '#ffd7b8'; }
     else if (probe('melt_depth_mm', simT) > 0) { tag.textContent = '◐ 凝固中'; tag.style.background = '#5a3b12'; tag.style.color = '#ffe2b8'; }
     else { tag.textContent = '❄ 冷却中'; tag.style.background = '#123a52'; tag.style.color = '#bde7ff'; }
     drawChart(simT, inWeld ? hudOp : 0);
@@ -1067,20 +1092,36 @@ window.render = (t) => {
       svgEl('pool', 'polyline', { points: pts(ptsB), stroke: '#ffffff', 'stroke-width': 4, 'stroke-dasharray': '12 8', fill: 'none', opacity: sOp });
       label('poolT', '熔池边界 1083 ℃', proj(1.45, 100 - maxD - 0.35, 0), `opacity:${sOp};font-size:26px;color:#fff`);
     }
-    if (kh > 0.1) {
-      const wob = 0.04 * Math.sin(t * 40);
-      const cav = [[-0.48, 100], [-0.3 + wob, 100 - kh * 0.5], [-0.14, 100 - kh * 0.9], [0, 100 - kh], [0.14, 100 - kh * 0.9], [0.3 - wob, 100 - kh * 0.5], [0.48, 100]].map(([x, y]) => proj(x, y, 0.02));
+    // fusion line: deepest melt reached so far per column (weld seam once solidified)
+    const fus = prof.map((p) => p[2]);
+    for (let f = 0; f < simFrame(simT)[0]; f++) poolProfile(P.t[f]).forEach((p, i) => { fus[i] = Math.max(fus[i], p[2]); });
+    if (Math.max(...fus) > 0) {
+      svgEl('fusion', 'polyline', { points: pts([[-2, 100, 0], ...fus.map((d, i) => [-HW + (i + 0.5) * 0.2, 100 - d, 0.01]), [2, 100, 0]].map((q) => proj(...q))), stroke: '#ffb340', 'stroke-width': 4, fill: 'none', opacity: sOp });
+      label('fusT', simT > TW ? '焊缝（已凝固）' : '熔合线', proj(-1.5, 100 - Math.max(...fus) - 0.35, 0), `opacity:${sOp};font-size:26px;color:#ffb340`);
+    }
+    if (maxD > 0.2) label('poolL', '熔池', proj(bm ? clamp(BX + (bm.dir > 0 ? -0.9 : 0.9), -1.5, 1.5) : 0, 100 - maxD * 0.45, 0), `opacity:${sOp};font-size:30px;font-weight:bold;color:#fff`);
+    if (kh > 0.1 && bm) {
+      // slender vapour capillary that lags behind the moving beam (thesis Fig. 6)
+      const dir = Math.sign(bm.dir) || 1, tipX = BX - dir * 0.3 * kh, side = [];
+      for (let k = 0; k <= 10; k++) { const u = k / 10, w = lerp(0.28, 0.04, Math.pow(u, 0.8)) * (1 + 0.08 * Math.sin(t * 40 + k)); side.push([lerp(BX, tipX, u), 100 - kh * u, w]); }
+      const cav = [...side.map(([x, y, w]) => [x - w, y]), ...side.slice().reverse().map(([x, y, w]) => [x + w, y])].map(([x, y]) => proj(x, y, 0.02));
       svgEl('kh', 'polygon', { points: pts(cav), fill: '#120804', stroke: '#fff3c4', 'stroke-width': 5, filter: 'url(#glowF)', opacity: sOp });
-      const tip = proj(0, 100 - kh, 0), aK = LAY.aK;
-      svgEl('khL', 'polyline', { points: pts([tip, [aK[0] - 20, aK[1]], [aK[0] + 300, aK[1]]]), stroke: '#fff3c4', 'stroke-width': 3, fill: 'none', opacity: sOp });
-      label('khT', `钥匙孔 ${kh.toFixed(1)} mm`, [aK[0] + 140, aK[1] - 30], `opacity:${sOp};font-size:34px;color:#fff3c4;font-weight:bold`);
+      const tip = proj(tipX, 100 - kh, 0), aK = LAY.aK;
+      svgEl('khL', 'polyline', { points: pts([tip, [aK[0] - 20, aK[1]], [aK[0] + 330, aK[1]]]), stroke: '#fff3c4', 'stroke-width': 3, fill: 'none', opacity: sOp });
+      label('khT', `钥匙孔（蒸汽毛细管）${kh.toFixed(1)} mm`, [aK[0] + 150, aK[1] - 30], `opacity:${sOp};font-size:30px;color:#fff3c4;font-weight:bold`);
+      label('plumeT', '金属蒸汽羽流', proj(BX - dir * 0.9, 101.6, 0), `opacity:${sOp};font-size:26px;color:#c9bfff`);
+      label('beamT', `激光束 · 芯 ${bm.c.core} W + 环 ${bm.c.ring} W`, proj(BX, 103.3, 0), `opacity:${sOp};font-size:26px;color:#9fe8ff`);
+      const a0 = proj(BX + dir * 0.45, 100.45, 0), a1 = proj(BX + dir * 1.25, 100.45, 0);
+      svgEl('scanArr', 'polyline', { points: pts([a0, a1]), stroke: '#9fe8ff', 'stroke-width': 4, fill: 'none', 'marker-end': 'url(#arrW)', opacity: sOp });
+      label('scanT', '扫描方向', [(a0[0] + a1[0]) / 2, a0[1] - 24], `opacity:${sOp};font-size:22px;color:#9fe8ff`);
       [-1, 1].forEach((sd) => {
-        const dd = Math.max(maxD, 0.8);
-        const c = proj(sd * 1.15, 100 - dd * 0.45, 0.02), r = proj(sd * 1.15 + 0.55, 100 - dd * 0.45, 0.02);
-        const rx = Math.abs(r[0] - c[0]), ry = rx * dd / 1.4;
-        svgEl('flow' + sd, 'ellipse', { cx: c[0], cy: c[1], rx, ry, fill: 'none', stroke: '#7cf2c8', 'stroke-width': 4, 'stroke-dasharray': '18 14', 'stroke-dashoffset': (sd * t * 160).toFixed(0), opacity: sOp * 0.9 });
+        const dd = Math.max(maxD, 0.6);
+        const cx = clamp(BX + sd * 0.75, -1.5, 1.5);
+        const c = proj(cx, 100 - dd * 0.45, 0.02), r = proj(cx + 0.4, 100 - dd * 0.45, 0.02);
+        const rx = Math.abs(r[0] - c[0]), ry = rx * dd / 1.1;
+        svgEl('flow' + sd, 'ellipse', { cx: c[0], cy: c[1], rx, ry, fill: 'none', stroke: '#7cf2c8', 'stroke-width': 4, 'stroke-dasharray': '18 14', 'stroke-dashoffset': (sd * t * 160).toFixed(0), opacity: sOp * 0.8 });
       });
-      label('flowT', '熔池流动（示意）', proj(-1.15, 99.15 - Math.max(maxD, 0.8) * 0.9, 0), `opacity:${sOp * 0.9};font-size:26px;color:#7cf2c8`);
+      label('flowT', '熔池流动（示意）', proj(clamp(BX - dir * 1.2, -1.4, 1.4), 100 - Math.max(maxD, 0.6) - 0.5, 0), `opacity:${sOp * 0.9};font-size:24px;color:#7cf2c8`);
     }
     const dmax = Math.max(maxD, ...P.melt_depth_mm.slice(0, simFrame(simT)[0] + 1));
     dim('dMelt', [2.45, 100, 0], [2.45, 100 - Math.max(dmax, 0.01), 0], [[2.05, 100, 0], [2.65, 100, 0]], [[2.05, 100 - dmax, 0], [2.65, 100 - dmax, 0]],
@@ -1100,6 +1141,10 @@ window.render = (t) => {
   show('summaryL', seg(t, 38.6, 39.2));
   $('summary').style.transform = `translateY(${60 * (1 - seg(t, 38.6, 39.2))}px)`;
   $('sKh').textContent = meta.keyhole_max.toFixed(1);
+  $('sTw').textContent = TW.toFixed(2);
+  $('sEin').textContent = (meta.E_in / 1000).toFixed(2);
+  $('sEab').textContent = (meta.E_abs / 1000).toFixed(2);
+  $('sEta').textContent = (100 * meta.E_abs / meta.E_in).toFixed(0);
   $('sTmax').textContent = meta.Tmax_overall.toFixed(0);
   $('sMelt').textContent = meta.melt_depth_max.toFixed(1);
   $('sWid').textContent = meta.melt_width_max.toFixed(1);
