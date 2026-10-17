@@ -278,11 +278,11 @@ document.getElementById('anChart').setAttribute('height', PC ? 210 : 250);
 if (PC) { const c = document.getElementById('chart'); c.setAttribute('width', 560); c.setAttribute('height', 250); }
 // layout positions that differ between phone and laptop
 const LAY = PC ? {
-  cbTop: 260, cbH: 520, aTop: [1060, 210], aEdge: [1060, 470], aK: [1050, 330],
+  cbTop: 260, cbH: 520, aTop: [1060, 210], aEdge: [1060, 470], aK: [1120, 600],
   swStart: [800, 860], solveSeat: [1180, 422], weldSpot: [330, 760], secSpot: [330, 800], chute: [1150, 80],
-  cuLogTop: [700, 220], cursor0: [800, 700], rot: [[760, 620], [960, 580]], camZoom: { weld: 0.75, sec: 0.55, end: 0.8 },
+  cuLogTop: [700, 220], cursor0: [800, 700], rot: [[760, 620], [960, 580]], camZoom: { weld: 0.75, sec: 0.72, end: 0.8 },
 } : {
-  cbTop: 400, cbH: 820, aTop: [640, 360], aEdge: [640, 1020], aK: [700, 700],
+  cbTop: 400, cbH: 820, aTop: [740, 330], aEdge: [640, 1020], aK: [640, 780],
   swStart: [640, 1500], solveSeat: [900, 762], weldSpot: [300, 1250], secSpot: [300, 1420], chute: [720, 200],
   cuLogTop: [1585, 1330], cursor0: [700, 1300], rot: [[640, 1150], [860, 1080]], camZoom: {},
 };
@@ -1071,10 +1071,10 @@ window.render = (t) => {
   if (inWeld) {
     const lOp = seg(t, S.weld + 0.4, S.weld + 0.8) * (1 - seg(t, S.sec - 0.3, S.sec));
     const pTop = proj(0, 100 + beadH, 0), aTop = LAY.aTop;
-    svgEl('ldTop', 'polyline', { points: pts([pTop, [aTop[0], aTop[1] + 40], [aTop[0] + 340, aTop[1] + 40]]), stroke: '#ffd7a0', 'stroke-width': 3, fill: 'none', opacity: lOp });
+    svgEl('ldTop', 'polyline', { points: pts([pTop, [aTop[0], aTop[1] + 40], [aTop[0] + (PC ? 340 : 270), aTop[1] + 40]]), stroke: '#ffd7a0', 'stroke-width': 3, fill: 'none', opacity: lOp });
     const melt = probe('melt_depth_mm', simT);
     label('lbTop', `<div class="readout">${Tm.toFixed(0)}<small> ℃</small></div><div style="font-size:27px;color:#ffd7a0">${kh > 0.1 ? `钥匙孔 ${kh.toFixed(1)} mm · ` : ''}${melt > 0.05 ? `熔池 ${melt.toFixed(1)} mm` : '最高温'}</div>`,
-      [aTop[0] + 170, aTop[1] - 20], `opacity:${lOp};text-align:center`);
+      [aTop[0] + (PC ? 170 : 130), aTop[1] - 20], `opacity:${lOp};text-align:center`);
     const pEdge = proj(2, 90, 1.6), aEdge = LAY.aEdge, Te = probe('T_edge', simT), warn = Te > 300;
     const ec = warn ? '#ffb86b' : '#4fd1ff';
     svgEl('ldEdge', 'polyline', { points: pts([pEdge, [aEdge[0], aEdge[1] + 40], [aEdge[0] + 340, aEdge[1] + 40]]), stroke: ec, 'stroke-width': 3, fill: 'none', opacity: lOp });
@@ -1097,7 +1097,7 @@ window.render = (t) => {
     for (let f = 0; f < simFrame(simT)[0]; f++) poolProfile(P.t[f]).forEach((p, i) => { fus[i] = Math.max(fus[i], p[2]); });
     if (Math.max(...fus) > 0) {
       svgEl('fusion', 'polyline', { points: pts([[-2, 100, 0], ...fus.map((d, i) => [-HW + (i + 0.5) * 0.2, 100 - d, 0.01]), [2, 100, 0]].map((q) => proj(...q))), stroke: '#ffb340', 'stroke-width': 4, fill: 'none', opacity: sOp });
-      label('fusT', simT > TW ? '焊缝（已凝固）' : '熔合线', proj(-1.5, 100 - Math.max(...fus) - 0.35, 0), `opacity:${sOp};font-size:26px;color:#ffb340`);
+      label('fusT', simT > TW ? '焊缝（已凝固）' : '熔合线', proj(0, 100 - Math.max(...fus) - 0.35, 0), `opacity:${sOp};font-size:26px;color:#ffb340`);
     }
     if (maxD > 0.2) label('poolL', '熔池', proj(bm ? clamp(BX + (bm.dir > 0 ? -0.9 : 0.9), -1.5, 1.5) : 0, 100 - maxD * 0.45, 0), `opacity:${sOp};font-size:30px;font-weight:bold;color:#fff`);
     if (kh > 0.1 && bm) {
@@ -1108,12 +1108,12 @@ window.render = (t) => {
       svgEl('kh', 'polygon', { points: pts(cav), fill: '#120804', stroke: '#fff3c4', 'stroke-width': 5, filter: 'url(#glowF)', opacity: sOp });
       const tip = proj(tipX, 100 - kh, 0), aK = LAY.aK;
       svgEl('khL', 'polyline', { points: pts([tip, [aK[0] - 20, aK[1]], [aK[0] + 330, aK[1]]]), stroke: '#fff3c4', 'stroke-width': 3, fill: 'none', opacity: sOp });
-      label('khT', `钥匙孔（蒸汽毛细管）${kh.toFixed(1)} mm`, [aK[0] + 150, aK[1] - 30], `opacity:${sOp};font-size:30px;color:#fff3c4;font-weight:bold`);
-      label('plumeT', '金属蒸汽羽流', proj(BX - dir * 0.9, 101.6, 0), `opacity:${sOp};font-size:26px;color:#c9bfff`);
+      label('khT', `钥匙孔（蒸汽毛细管）${kh.toFixed(1)} mm`, [aK[0] + 150, aK[1] - 30], `opacity:${sOp};font-size:30px;color:#fff3c4;font-weight:bold;background:rgba(0,0,0,.55);padding:2px 10px;border-radius:6px`);
+      if (!PC) label('plumeT', '金属蒸汽羽流', proj(BX - dir * 1.0, 101.3, 0), `opacity:${sOp};font-size:26px;color:#c9bfff`);
       label('beamT', `激光束 · 芯 ${bm.c.core} W + 环 ${bm.c.ring} W`, proj(BX, 103.3, 0), `opacity:${sOp};font-size:26px;color:#9fe8ff`);
-      const a0 = proj(BX + dir * 0.45, 100.45, 0), a1 = proj(BX + dir * 1.25, 100.45, 0);
+      const a0 = proj(BX + dir * 0.45, 100.3, 0), a1 = proj(BX + dir * 1.15, 100.3, 0);
       svgEl('scanArr', 'polyline', { points: pts([a0, a1]), stroke: '#9fe8ff', 'stroke-width': 4, fill: 'none', 'marker-end': 'url(#arrW)', opacity: sOp });
-      label('scanT', '扫描方向', [(a0[0] + a1[0]) / 2, a0[1] - 24], `opacity:${sOp};font-size:22px;color:#9fe8ff`);
+      label('scanT', '扫描方向', [a1[0] + dir * 14, a1[1]], `opacity:${sOp};font-size:22px;color:#9fe8ff;transform:translate(${dir > 0 ? '0' : '-100%'},-50%)`);
       [-1, 1].forEach((sd) => {
         const dd = Math.max(maxD, 0.6);
         const cx = clamp(BX + sd * 0.75, -1.5, 1.5);
@@ -1121,12 +1121,11 @@ window.render = (t) => {
         const rx = Math.abs(r[0] - c[0]), ry = rx * dd / 1.1;
         svgEl('flow' + sd, 'ellipse', { cx: c[0], cy: c[1], rx, ry, fill: 'none', stroke: '#7cf2c8', 'stroke-width': 4, 'stroke-dasharray': '18 14', 'stroke-dashoffset': (sd * t * 160).toFixed(0), opacity: sOp * 0.8 });
       });
-      label('flowT', '熔池流动（示意）', proj(clamp(BX - dir * 1.2, -1.4, 1.4), 100 - Math.max(maxD, 0.6) - 0.5, 0), `opacity:${sOp * 0.9};font-size:24px;color:#7cf2c8`);
     }
     const dmax = Math.max(maxD, ...P.melt_depth_mm.slice(0, simFrame(simT)[0] + 1));
     dim('dMelt', [2.45, 100, 0], [2.45, 100 - Math.max(dmax, 0.01), 0], [[2.05, 100, 0], [2.65, 100, 0]], [[2.05, 100 - dmax, 0], [2.65, 100 - dmax, 0]],
       `熔深 ${dmax.toFixed(1)}`, sOp * (dmax > 0.2 ? 1 : 0), '#ffffff', 'transform:translate(-112%,-50%)');
-    label('fuse', meltW >= 3.9 ? '两根全熔合 ✓ 熔宽 4.0 mm' : `熔宽 ${meltW.toFixed(1)} mm`, proj(0, 100.5, 0), `opacity:${sOp};font-size:34px;font-weight:bold;color:#7cf2c8;transform:translate(-50%,-100%)`);
+    label('fuse', meltW >= 3.9 ? '两根全熔合 ✓ 熔宽 4.0 mm' : `熔宽 ${meltW.toFixed(1)} mm`, proj(0, 101.0, 0), `opacity:${sOp};font-size:34px;font-weight:bold;color:#7cf2c8;transform:translate(-50%,-100%)`);
     label('wire1', '铜线 1', proj(-1, 95, 0), `opacity:${sOp * 0.8};font-size:30px;color:#cfe8f2`);
     label('wire2', '铜线 2', proj(1, 95, 0), `opacity:${sOp * 0.8};font-size:30px;color:#cfe8f2`);
   }
