@@ -126,6 +126,22 @@
   #summary .k { color: #8fb6c8; } #summary .warn { color: #ffb86b; }
   #summary .note { font-size: 22px; color: #7d8590; margin-top: 10px; line-height: 1.5; }
   #spec { position: absolute; left: 0; bottom: 60px; opacity: .85; }
+
+  /* ---------- computer use overlay ---------- */
+  #cuBorder { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 6px #d97757, inset 0 0 50px rgba(217,119,87,.55); }
+  #cuPill { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: #1f1e1d; color: #f5e6dc; border: 2px solid #d97757;
+    border-radius: 40px; padding: 6px 26px; font-size: 24px; white-space: nowrap; box-shadow: 0 4px 16px rgba(0,0,0,.35); }
+  #cuLog { position: absolute; right: 22px; width: 600px; background: rgba(20,20,19,.93); border: 2px solid #d97757; border-radius: 14px;
+    padding: 12px 18px; font: 22px "WenQuanYi Zen Hei Mono", monospace; color: #e8e6e0; line-height: 1.6; box-shadow: 0 8px 26px rgba(0,0,0,.4); }
+  #cuLog .h { color: #d97757; font-weight: bold; margin-bottom: 4px; }
+  #cuLog .ln { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #cuLog .ln:last-child { color: #fff; }
+  #cursor { position: absolute; left: 0; top: 0; }
+  #ripple { position: absolute; left: 0; top: 0; border-radius: 50%; border: 5px solid #d97757; }
+  #kbd { position: absolute; left: 0; top: 0; background: #1f1e1d; color: #fff; border: 2px solid #d97757; border-radius: 10px; padding: 4px 14px; font: bold 26px monospace; white-space: nowrap; }
+  #flash { position: absolute; inset: 0; background: #fff; pointer-events: none; }
+  #matPop { position: absolute; background: #fff; border: 1px solid #8a8a8a; box-shadow: 4px 6px 16px rgba(0,0,0,.3); font-size: 22px; color: #222; width: 260px; }
+  #matPop div { padding: 6px 14px; } #matPop .pick { background: #cfe3fb; }
 </style>
 </head>
 <body>
@@ -197,9 +213,9 @@
       <div><span class="orange" id="spin">✻</span> Cogitating… <span class="grey" id="ccTok"></span></div>
       <div><span class="green">⏺</span> Write(<b>wires_sw.py</b>)</div>
       <div class="grey">　⎿ 2 × 扁铜线 2×3.2×100 · 并排 · 剥漆 10 mm</div>
-      <div><span class="green">⏺</span> Bash(<b>python weld_sim.py --keyhole</b>)</div>
-      <div class="grey">　⎿ 64,000 节点 · 瞬态热 · 钥匙孔体热源</div>
-      <div><span class="orange">⏺</span> 打开 CAD，开始建模 →</div>
+      <div><span class="green">⏺</span> computer-use 已连接 · 接管桌面</div>
+      <div><span class="green">⏺</span> computer(<b>screenshot</b>)</div>
+      <div><span class="orange">⏺</span> computer(<b>double_click</b> 「CAD」) → 开始建模</div>
     </div>
   </div>
 </div>
@@ -215,9 +231,17 @@
   </div>
 </div>
 
+<div id="matPop"><div>▸ 铜合金</div><div class="pick">无氧铜 C11000</div><div>黄铜 H62</div><div>铝合金 6061</div></div>
+<div id="cuBorder"></div>
+<div id="cuPill">✻ Claude 正在使用你的电脑 · Esc 停止</div>
+<div id="cuLog"></div>
+<div id="flash"></div>
 <canvas id="fx" width="1080" height="1920"></canvas>
 <div id="mascot"></div>
 <div id="bubble"></div>
+<div id="ripple"></div>
+<div id="kbd"></div>
+<svg id="cursor" width="44" height="56" viewBox="0 0 44 56"><path d="M3,3 L3,43 L13,33 L21,51 L29,47 L21,30 L36,30 Z" fill="#111" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>
 <canvas id="spec" width="1080" height="80"></canvas>
 
 <script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js",
@@ -598,7 +622,7 @@ function mascotPose(t) {
   } else if (t < S.ans) {
     o.ps = 7;
     if (t < 6.8) { const u = seg(t, S.sw + 0.2, 6.8), sk = at(1, 0, 1.0); o.x = lerp(640, sk[0], u); o.y = lerp(1500, sk[1], u); o.walk = u > 0 && u < 1; }
-    else if (t < 10.6) { const h = 100 * Math.pow(seg(t, 8.2, 10.4), 1.3); [o.x, o.y] = at(1, h, 0.6); if (t > 8.2 && t < 10.4) o.armsUp = true; }
+    else if (t < 10.6) { [o.x, o.y] = at(1, extrudeH(t), 0.6); if (t > 8.8 && t < 9.8) o.armsUp = true; }
     else if (t < 12.8) { [o.x, o.y] = at(1, 100, 0.6); }
     else if (t < 14.8) { const u = seg(t, 12.8, 13.3), a = at(1, 100, 0.6), b = at(-3.4, 92, 0); o.x = lerp(a[0], b[0], u); o.y = lerp(a[1], b[1], u) + hop(u); }
     else { const u = seg(t, 14.8, 15.3), a = at(-3.4, 92, 0), b = at(1, 100, 0.6); o.x = lerp(a[0], b[0], u); o.y = lerp(a[1], b[1], u) + hop(u); }
@@ -669,6 +693,105 @@ function claudeCode(t) {
   $('ccPrompt').style.borderColor = t > 2.5 && !sent ? '#d97757' : '#5a5853';
 }
 
+// ---------------------------------------------------------------- computer use (cursor, clicks, screenshots, action log)
+const elC = (sel) => { const e = document.querySelector(sel); if (!e) return [540, 960]; const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+const ACTS = [
+  { t: 5.45, k: 'shot' },
+  { t: 5.6, k: 'click', at: () => elC('#swTabs span[data-k=sketch]'), lb: '草图' },
+  { t: 5.7, k: 'drag', a: () => proj(-2, 0, -1.6), b: () => proj(0, 0, 1.6), dur: 0.6, lb: '矩形 1' },
+  { t: 6.5, k: 'drag', a: () => proj(0, 0, -1.6), b: () => proj(2, 0, 1.6), dur: 0.6, lb: '矩形 2' },
+  { t: 7.2, k: 'click', at: () => proj(1, 0, 2.6), lb: '智能尺寸' },
+  { t: 7.32, k: 'type', text: '2 · 2 · 3.2' },
+  { t: 7.72, k: 'click', at: () => elC('#swCorner span'), lb: '✔ 退出草图' },
+  { t: 7.95, k: 'click', at: () => elC('.cmd[data-k=extrude]'), lb: '拉伸凸台/基体' },
+  { t: 8.35, k: 'click', at: () => elC('#pmD'), lb: 'D1 深度' },
+  { t: 8.45, k: 'type', text: '100' },
+  { t: 8.8, k: 'key', text: 'Enter' },
+  { t: 9.85, k: 'click', at: () => elC('#swPM .ok'), lb: '✔ 确定' },
+  { t: 10.25, k: 'shot' },
+  { t: 10.62, k: 'click', at: () => elC('#swTree div[data-n=MAT]'), lb: '材质' },
+  { t: 10.86, k: 'click', at: () => elC('#matPop .pick'), lb: '无氧铜 C11000' },
+  { t: 12.52, k: 'click', at: () => elC('.cmd[data-k=split]'), lb: '分割线' },
+  { t: 12.9, k: 'click', at: () => proj(1, 90, 1.6), lb: '面<1> @ 90 mm' },
+  { t: 13.02, k: 'type', text: '10' },
+  { t: 13.9, k: 'click', at: () => proj(-1, 70, 1.6), lb: '外观 · 漆膜' },
+  { t: 14.65, k: 'shot' },
+  { t: 15.0, k: 'drag', a: () => [640, 1150], b: () => [860, 1080], dur: 1.5, lb: '旋转视图' },
+  { t: 17.3, k: 'click', at: () => elC('.abtn[data-k=mesh]'), lb: '生成网格' },
+  { t: 18.7, k: 'shot' },
+  { t: 18.86, k: 'click', at: () => elC('.abtn[data-k=bc]'), lb: '热通量' },
+  { t: 19.0, k: 'click', at: () => proj(0, 100, 0), lb: '剥漆顶面' },
+  { t: 19.22, k: 'click', at: () => elC('.abtn[data-k=bc2]'), lb: '对流' },
+  { t: 19.34, k: 'click', at: () => proj(2, 92, 1.6), lb: '侧面' },
+  { t: 19.5, k: 'click', at: () => elC('.abtn[data-k=bc3]'), lb: '温度' },
+  { t: 19.62, k: 'click', at: () => proj(-2, 84, 1.6), lb: '夹具面' },
+  { t: 19.95, k: 'click', at: () => elC('.abtn[data-k=solve]'), lb: '⚡ 求解' },
+  { t: 20.9, k: 'shot' },
+  { t: 21.85, k: 'click', at: () => elC('.abtn[data-k=res]'), lb: '温度结果' },
+  { t: 22.35, k: 'shot' },
+];
+const actLog = new Map();
+function actPos(a, t) {
+  if (a.k === 'drag') return (t < a.t ? a.a() : t < a.t + a.dur ? a.a().map((v, i) => lerp(v, a.b()[i], smooth((t - a.t) / a.dur))) : a.b());
+  return a.at ? a.at() : null;
+}
+function cursorAt(t) {
+  const pa = ACTS.filter((a) => a.at || a.a);
+  let i = -1; while (i < pa.length - 1 && pa[i + 1].t <= t) i++;
+  const cur = i >= 0 ? actPos(pa[i], t) : [700, 1300];
+  const next = pa[i + 1];
+  if (!next) return cur;
+  const gap = next.t - (i >= 0 ? pa[i].t + (pa[i].dur || 0) : 5.2);
+  const mv = Math.min(0.32, gap * 0.8);
+  const start = next.k === 'drag' ? next.a() : next.at();
+  const u = seg(t, next.t - mv, next.t);
+  return [lerp(cur[0], start[0], u), lerp(cur[1], start[1], u) - Math.sin(Math.PI * u) * 30];
+}
+function computerUse(t) {
+  const on = fade(t, S.sw, S.sw + 0.3, S.weld - 0.3, S.weld);
+  show('cuBorder', on); show('cuPill', on); show('cuLog', on);
+  const [cx, cy] = cursorAt(t);
+  const cOp = fade(t, S.sw + 0.1, S.sw + 0.3, 22.6, 22.9);
+  $('cursor').style.opacity = cOp;
+  $('cursor').style.transform = `translate(${cx - 3}px, ${cy - 3}px)`;
+  // click ripple
+  const lastClick = ACTS.filter((a) => (a.k === 'click' || a.k === 'drag') && a.t <= t).pop();
+  const ra = lastClick ? t - lastClick.t : 9;
+  const rp = $('ripple');
+  if (ra < 0.4 && cOp > 0) { const r = 10 + ra * 110; rp.style.opacity = 1 - ra / 0.4; rp.style.width = rp.style.height = `${2 * r}px`; rp.style.transform = `translate(${cx - r}px, ${cy - r}px)`; }
+  else rp.style.opacity = 0;
+  // keystroke chip
+  const lastKey = ACTS.filter((a) => (a.k === 'type' || a.k === 'key') && a.t <= t).pop();
+  const ka = lastKey ? t - lastKey.t : 9, kb = $('kbd');
+  if (ka < 0.55 && cOp > 0) {
+    const txt = lastKey.k === 'key' ? `⏎ ${lastKey.text}` : `⌨ ${lastKey.text.slice(0, Math.ceil(lastKey.text.length * clamp(ka / 0.3)))}`;
+    if (kb.textContent !== txt) kb.textContent = txt;
+    kb.style.opacity = 1 - seg(ka, 0.4, 0.55); kb.style.transform = `translate(${cx + 34}px, ${cy + 40}px)`;
+  } else kb.style.opacity = 0;
+  // screenshot flash
+  const lastShot = ACTS.filter((a) => a.k === 'shot' && a.t <= t).pop();
+  const sa = lastShot ? t - lastShot.t : 9;
+  $('flash').style.opacity = sa < 0.18 ? 0.45 * (1 - sa / 0.18) : 0;
+  // material popup
+  const mp = $('matPop'); const mpOn = t > 10.66 && t < 10.95;
+  show('matPop', mpOn ? 1 : 0);
+  if (mpOn) { const r = document.querySelector('#swTree div[data-n=MAT]')?.getBoundingClientRect(); if (r) { mp.style.left = `${r.left + 150}px`; mp.style.top = `${r.top + 24}px`; } }
+  // action log (Claude Code side panel)
+  if (on > 0) {
+    const done = ACTS.filter((a) => a.t <= t);
+    done.forEach((a) => {
+      if (actLog.has(a)) return;
+      const p = a.k === 'drag' ? [a.a(), a.b()] : a.at ? a.at() : null;
+      const f = (q) => `(${Math.round(q[0])}, ${Math.round(q[1])})`;
+      actLog.set(a, a.k === 'shot' ? 'screenshot' : a.k === 'type' ? `type "${a.text}"` : a.k === 'key' ? `key ${a.text}` :
+        a.k === 'drag' ? `left_click_drag ${f(p[0])}→${f(p[1])} ${a.lb}` : `left_click ${f(p)} ${a.lb}`);
+    });
+    const lines = done.slice(-5).map((a) => `<div class="ln"><span style="color:#7ec699">⏺</span> computer · ${actLog.get(a)}</div>`).join('');
+    setHTML($('cuLog'), `<div class="h">✻ Claude Code · computer use</div>${lines || '<div class="ln">…</div>'}`);
+    $('cuLog').style.top = t < S.ans ? '1585px' : '1330px';
+  }
+}
+
 // ---------------------------------------------------------------- main render
 function simTimeWeld(t) {
   const tc = t - (S.weld + 0.6);
@@ -680,6 +803,11 @@ function simTimeSec(t) {
   if (t < S.sec + 0.6) return 0.003;
   if (t < 35.0) return lerp(0.003, meta.t_on, (t - S.sec - 0.6) / (35.0 - S.sec - 0.6));
   return lerp(meta.t_on, 0.32, seg(t, 35.0, 35.9));
+}
+function extrudeH(t) {
+  if (t < 8.05) return 0;
+  if (t < 8.8) return 10 * seg(t, 8.05, 8.3);
+  return lerp(10, 100, Math.pow(seg(t, 8.8, 9.8), 1.2));
 }
 const SW_STEPS = [['sketch', S.sw], ['extrude', 8.0], ['mat', 10.6], ['split', 12.6], ['done', 14.6]];
 let clipOn = null;
@@ -704,11 +832,11 @@ window.render = (t) => {
       if (at > t) return '';
       const name = n === 'MAT' ? (t > 10.9 ? '材质 &lt;无氧铜 C11000&gt;' : '材质 &lt;未指定&gt;') : n;
       const hl = (n === '草图1' && step === 'sketch') || (n === '凸台-拉伸1' && t > 9.9 && t < 10.6) || (n === 'MAT' && step === 'mat') || (n === '分割线1' && step === 'split');
-      return `<div class="${hl ? 'hl' : ''}"><span class="ic" style="background:${c}"></span>${name}</div>`;
+      return `<div class="${hl ? 'hl' : ''}" data-n="${n}"><span class="ic" style="background:${c}"></span>${name}</div>`;
     }).join(''));
     const pmOn = t > 8.0 && t < 9.95;
     show('swPM', pmOn ? 1 : 0); show('swTree', pmOn ? 0 : 1);
-    $('pmD').textContent = `${(100 * seg(t, 8.2, 9.4)).toFixed(2)}mm`;
+    $('pmD').textContent = t < 8.45 ? '10.00mm' : t < 8.8 ? '100'.slice(0, 1 + Math.floor((t - 8.45) / 0.1)) + '▌' : '100.00mm';
     show('swCorner', (t > S.sw + 0.3 && t < 7.9) ? 1 : 0);
     $('swStat').textContent = { sketch: '草图1 · 上视基准面 · 矩形 ×2', extrude: '凸台-拉伸1 · 给定深度 100 mm', mat: '编辑材质 · 无氧铜 C11000', split: '分割线1 · 剥漆 10 mm', done: '两根扁铜线 · 并排 · 顶部剥漆 10 mm' }[step] || '';
   }
@@ -716,19 +844,20 @@ window.render = (t) => {
   // sketch: two rectangles
   grid.material.opacity = fade(t, S.sw, S.sw + 0.4, 9.6, 10.4) * 0.9;
   grid.visible = grid.material.opacity > 0.01;
-  const skLine = (id, x0, prog, defined) => {
-    const c = [[x0, 0, -1.6], [x0 + 2, 0, -1.6], [x0 + 2, 0, 1.6], [x0, 0, 1.6], [x0, 0, -1.6]], d = [c[0]];
-    for (let i = 1; i < 5; i++) { const u = clamp(prog * 4 - (i - 1)); if (u <= 0) break; d.push(c[i - 1].map((v, k) => lerp(v, c[i][k], u))); }
-    svgEl(id, 'polyline', { points: pts(d.map((p) => proj(...p))), stroke: defined ? '#111' : '#1d5bd8', 'stroke-width': 4, fill: 'none', opacity: fade(t, S.sw + 0.3, S.sw + 0.4, 8.4, 8.8), 'stroke-linejoin': 'round' });
+  const skRect = (id, x0, prog, defined) => {
+    if (prog <= 0) return;
+    const x1 = lerp(x0, x0 + 2, prog), z1 = lerp(-1.6, 1.6, prog);
+    const c = [[x0, 0, -1.6], [x1, 0, -1.6], [x1, 0, z1], [x0, 0, z1], [x0, 0, -1.6]];
+    svgEl(id, 'polyline', { points: pts(c.map((p) => proj(...p))), stroke: defined ? '#111' : '#1d5bd8', 'stroke-width': 4, fill: 'none', opacity: fade(t, S.sw + 0.3, S.sw + 0.4, 8.4, 8.8), 'stroke-linejoin': 'round' });
   };
-  if (t > S.sw && t < 8.8) { skLine('sk1', -2, seg(t, 5.6, 6.4), t > 7.4); skLine('sk2', 0, seg(t, 6.3, 7.0), t > 7.4); }
+  if (t > S.sw && t < 8.8) { skRect('sk1', -2, clamp((t - 5.7) / 0.6), t > 7.4); skRect('sk2', 0, clamp((t - 6.5) / 0.6), t > 7.4); }
   const dOp = fade(t, 7.0, 7.3, 7.9, 8.3);
   dim('dw1', [-2, 0, 2.6], [0, 0, 2.6], [[-2, 0, 1.6], [-2, 0, 2.9]], [[0, 0, 1.6], [0, 0, 2.9]], '2', dOp);
   dim('dw2', [0, 0, 2.6], [2, 0, 2.6], [[0, 0, 1.6], [0, 0, 2.9]], [[2, 0, 1.6], [2, 0, 2.9]], '2', dOp);
   dim('dd', [3.0, 0, -1.6], [3.0, 0, 1.6], [[2, 0, -1.6], [3.3, 0, -1.6]], [[2, 0, 1.6], [3.3, 0, 1.6]], '3.2', dOp);
 
   // extrude + materials
-  const h = 100 * Math.pow(seg(t, 8.2, 10.4), 1.3);
+  const h = extrudeH(t);
   const yellow = new THREE.Color(0xf5d24a), gray = new THREE.Color(0xb8bec8), cu = new THREE.Color(0xffa060), ansC = new THREE.Color(0x9fb1c4);
   const resShown = inAns && t > 21.9;
   wires.forEach(({ mesh, edges }) => {
@@ -926,6 +1055,7 @@ window.render = (t) => {
   for (const e of ov.children) if (e.id && !used.has(e.id)) e.setAttribute('opacity', 0);
   for (const e of labels.children) if (!used.has(e.id)) e.style.opacity = 0;
 
+  computerUse(t);
   claudeCode(t);
   const mo = drawMascot(t);
   drawFx(t, inEnd ? [mo.x, mo.y] : null);
