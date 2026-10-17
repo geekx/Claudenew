@@ -4,110 +4,176 @@
 <meta charset="utf-8">
 <title>扁铜线焊接热仿真</title>
 <style>
-  :root { --claude: #d97757; --ink: #f2efe8; --muted: #a8a49c; }
+  :root { --claude: #d97757; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000;
-    font-family: "WenQuanYi Zen Hei", "Noto Sans CJK SC", sans-serif; color: var(--ink); }
+    font-family: "WenQuanYi Zen Hei", sans-serif; color: #f2efe8; }
   .layer { position: absolute; inset: 0; }
-  #bgLight { background: radial-gradient(ellipse at 50% 40%, #fbfbfd 0%, #e4e7ec 70%, #d3d7de 100%); }
+  #bgSW { background: linear-gradient(#ffffff 0%, #eef2f7 45%, #b9c6d8 100%); }
+  #bgAns { background: linear-gradient(#2d4a72 0%, #7f97b6 55%, #e3e9f1 100%); }
   #bgDark { background-color: #07090d;
-    background-image: linear-gradient(rgba(70,140,170,.13) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(70,140,170,.13) 1px, transparent 1px);
+    background-image: linear-gradient(rgba(70,140,170,.13) 1px, transparent 1px), linear-gradient(90deg, rgba(70,140,170,.13) 1px, transparent 1px);
     background-size: 60px 60px; }
+  #bgBeauty { background: radial-gradient(ellipse at 50% 35%, #3a3a42 0%, #141418 55%, #050506 100%); }
   canvas#gl { position: absolute; inset: 0; }
   svg#ov { position: absolute; inset: 0; pointer-events: none; }
   .lbl { position: absolute; white-space: nowrap; transform: translate(-50%, -50%); }
 
-  /* ---------- CAD chrome ---------- */
-  #cad { color: #2b2f36; }
-  #toolbar { position: absolute; top: 0; left: 0; right: 0; height: 132px; background: #f7f8fa;
-    border-bottom: 2px solid #d5d9e0; display: flex; align-items: center; justify-content: center; gap: 18px; }
-  .tool { width: 150px; height: 104px; border-radius: 14px; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; font-size: 28px; color: #4a515c; gap: 6px; }
-  .tool .ic { font-size: 40px; line-height: 1; }
-  .tool.on { background: #dbe8ff; color: #1d5bd8; box-shadow: inset 0 0 0 2px #8db0f5; }
-  #tree { position: absolute; top: 160px; left: 26px; width: 330px; background: rgba(255,255,255,.82);
-    border: 2px solid #dde1e7; border-radius: 16px; padding: 20px 22px; font-size: 27px; line-height: 1.75; }
-  #tree b { font-size: 29px; }
-  #tree div { color: #59606b; }
-  #tree div.on { color: #1d5bd8; font-weight: bold; }
-  #status { position: absolute; bottom: 150px; left: 0; right: 0; text-align: center; font-size: 30px; color: #59606b; }
+  /* ---------- Claude Code terminal ---------- */
+  #cc { background: #141413; font-family: "WenQuanYi Zen Hei Mono", monospace; font-size: 31px; color: #e8e6e0; }
+  #ccBar { height: 84px; background: #262624; display: flex; align-items: center; padding: 0 30px; gap: 16px; color: #a19d94; font-size: 26px; }
+  .dot { width: 22px; height: 22px; border-radius: 50%; }
+  #ccBody { padding: 34px 34px; }
+  #ccWelcome { border: 3px solid var(--claude); border-radius: 18px; padding: 28px 30px; display: flex; gap: 34px; align-items: center; }
+  #ccWelcome .t1 { font-size: 36px; font-weight: bold; }
+  #ccWelcome .t2 { color: #a19d94; font-size: 28px; margin-top: 8px; }
+  #ccPrompt { margin-top: 40px; border: 2px solid #5a5853; border-radius: 14px; padding: 22px 26px; min-height: 130px; line-height: 1.45; }
+  #ccPrompt .gt { color: #a19d94; }
+  #ccHint { display: flex; justify-content: space-between; color: #77736b; font-size: 25px; margin-top: 12px; padding: 0 8px; }
+  #effort { margin-top: 30px; border: 2px solid #3d3b37; border-radius: 14px; padding: 24px 26px; }
+  #effort .head { color: #a19d94; font-size: 27px; margin-bottom: 20px; }
+  #effLevels { display: flex; justify-content: space-between; font-size: 30px; color: #77736b; }
+  #effLevels span { padding: 6px 14px; border-radius: 10px; display: inline-block; }
+  #effTrack { margin-top: 18px; height: 16px; border-radius: 8px; background: #2e2d2a; overflow: hidden; }
+  #effFill { height: 100%; width: 0; border-radius: 8px; background: linear-gradient(90deg, #6b8afd, #b37cf7, #f27979, #f7b955); }
+  #effMax { font-weight: bold; background-image: linear-gradient(90deg, #ff7a59, #ffd36e, #7cf2c8, #7aa7ff, #c38bff, #ff7a59);
+    background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; }
+  #ccLog { margin-top: 30px; line-height: 1.6; font-size: 29px; }
+  #ccLog div { opacity: 0; }
+  .orange { color: var(--claude); } .grey { color: #8f8b82; } .green { color: #7ec699; }
 
-  /* ---------- weld HUD ---------- */
-  #hud .title { position: absolute; top: 70px; left: 0; right: 0; text-align: center; font-size: 58px; font-weight: bold; letter-spacing: 6px; }
-  #hud .sub { position: absolute; top: 152px; left: 0; right: 0; text-align: center; font-size: 28px; color: #8fb6c8; }
-  #simt { position: absolute; top: 230px; left: 50px; font: bold 40px monospace; color: #cfe8f2; }
-  #tag { position: absolute; top: 290px; left: 50px; font-size: 28px; padding: 6px 18px; border-radius: 10px; }
+  /* ---------- CAD (SolidWorks-like) ---------- */
+  #sw { color: #222; font-size: 22px; }
+  #swTitle { position: absolute; top: 0; left: 0; right: 0; height: 56px; background: #dadada; display: flex; align-items: center; justify-content: flex-end; padding-right: 24px; font-size: 23px; color: #333; border-bottom: 1px solid #b9b9b9; }
+  #swTitle .menu { position: absolute; left: 16px; display: flex; gap: 22px; font-size: 22px; color: #333; }
+  #swCmd { position: absolute; top: 56px; left: 0; right: 0; height: 132px; background: #f4f4f4; display: flex; align-items: flex-start; padding: 10px 10px 0; gap: 4px; }
+  .cmd { width: 128px; height: 112px; display: flex; flex-direction: column; align-items: center; font-size: 19px; line-height: 1.15; text-align: center; color: #333; border-radius: 6px; padding-top: 6px; }
+  .cmd .ic { width: 50px; height: 46px; margin-bottom: 4px; }
+  .cmd.on { background: #fde7b3; outline: 2px solid #f0b43c; }
+  #swTabs { position: absolute; top: 188px; left: 0; right: 0; height: 44px; background: #e9e9e9; border-bottom: 1px solid #c9c9c9; display: flex; gap: 2px; padding-left: 10px; }
+  #swTabs span { padding: 8px 20px; font-size: 21px; color: #444; }
+  #swTabs span.on { background: #fff; border: 1px solid #c9c9c9; border-bottom: none; color: #111; }
+  #swLeft { position: absolute; top: 232px; left: 0; width: 318px; bottom: 54px; background: #fbfbfb; border-right: 1px solid #c9c9c9; }
+  #swLeftTabs { height: 44px; display: flex; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #ddd; }
+  #swLeftTabs i { width: 30px; height: 26px; border-radius: 4px; background: #d9dee6; display: inline-block; }
+  #swTree { padding: 10px 12px; line-height: 1.95; font-size: 22px; }
+  #swTree div { white-space: nowrap; }
+  #swTree .ic { display: inline-block; width: 22px; height: 18px; margin-right: 8px; border-radius: 3px; vertical-align: -2px; }
+  #swTree .hl { background: #cfe3fb; }
+  #swPM { position: absolute; top: 276px; left: 0; width: 318px; background: #fbfbfb; padding: 12px; font-size: 22px; }
+  #swPM .h { font-weight: bold; font-size: 24px; display: flex; justify-content: space-between; align-items: center; }
+  #swPM .ok { color: #2e9b3a; font-size: 34px; } #swPM .no { color: #c0392b; font-size: 30px; }
+  #swPM .grp { margin-top: 14px; border: 1px solid #cfd5dd; border-radius: 4px; }
+  #swPM .grp .gh { background: #e8edf3; padding: 4px 10px; font-weight: bold; }
+  #swPM .grp .gb { padding: 8px 10px; line-height: 1.8; }
+  #swPM .inp { font: 22px monospace; display: inline-block; width: 170px; border: 1px solid #8aa7d6; padding: 2px 6px; background: #fff; }
+  #swHUD { position: absolute; top: 246px; left: 420px; right: 80px; height: 50px; display: flex; justify-content: center; gap: 16px; }
+  #swHUD i { width: 36px; height: 34px; border-radius: 6px; background: rgba(120,130,145,.25); display: inline-block; }
+  #swCorner { position: absolute; top: 300px; right: 26px; display: flex; gap: 10px; font-size: 40px; }
+  #swStatus { position: absolute; left: 0; right: 0; bottom: 0; height: 54px; background: #dadada; border-top: 1px solid #b9b9b9; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; font-size: 21px; color: #333; }
+  #swView { position: absolute; left: 340px; bottom: 150px; font-size: 22px; color: #3a4558; font-style: italic; }
+  #triad { position: absolute; left: 340px; bottom: 180px; }
+
+  /* ---------- Simulation (Mechanical-like) ---------- */
+  #ans { color: #1d1d1d; font-size: 21px; }
+  #anTitle { position: absolute; top: 0; left: 0; right: 0; height: 56px; background: #0f2f57; color: #e8eef7; display: flex; align-items: center; padding: 0 18px; font-size: 23px; gap: 22px; }
+  #anRibbon { position: absolute; top: 56px; left: 0; right: 0; height: 150px; background: #f2f3f5; border-bottom: 1px solid #c9ced6; }
+  #anTabs { display: flex; gap: 6px; padding: 6px 10px 0; font-size: 21px; }
+  #anTabs span { padding: 6px 18px; } #anTabs span.on { background: #fff; border: 1px solid #c9ced6; border-bottom: none; color: #0f4c9a; font-weight: bold; }
+  #anBtns { display: flex; gap: 10px; padding: 10px 14px; background: #fff; height: 104px; align-items: center; }
+  .abtn { display: flex; flex-direction: column; align-items: center; font-size: 18px; width: 100px; color: #333; padding: 4px 0; }
+  .abtn b { width: 44px; height: 40px; border-radius: 6px; margin-bottom: 4px; display: block; }
+  .abtn.on { outline: 2px solid #f0b43c; background: #fff4d6; border-radius: 6px; }
+  #anOutline { position: absolute; top: 206px; left: 0; width: 330px; height: 900px; background: #fff; border-right: 1px solid #c9ced6; }
+  #anOutline .ph, #anDetails .ph { background: #dfe6ef; padding: 6px 12px; font-weight: bold; font-size: 21px; color: #23364f; }
+  #anTree { padding: 8px 10px; line-height: 1.9; font-size: 21px; }
+  #anTree div { white-space: nowrap; }
+  #anTree .ck { color: #2e9b3a; margin-right: 6px; } #anTree .bolt { color: #d18b00; margin-right: 6px; }
+  #anDetails { position: absolute; top: 1106px; left: 0; width: 330px; bottom: 300px; background: #fff; border-right: 1px solid #c9ced6; border-top: 1px solid #c9ced6; }
+  #anDetails table { width: 100%; border-collapse: collapse; font-size: 19px; }
+  #anDetails td { border-bottom: 1px solid #e3e7ec; padding: 5px 8px; } #anDetails td:first-child { color: #555; width: 45%; }
+  #anGraph { position: absolute; left: 0; right: 0; bottom: 0; height: 300px; background: #fff; border-top: 2px solid #c9ced6; }
+  #anGraph .ph { background: #dfe6ef; padding: 6px 12px; font-weight: bold; font-size: 21px; color: #23364f; }
+  #anLegend { position: absolute; top: 230px; left: 352px; font-size: 20px; color: #fff; text-shadow: 0 1px 2px #000; line-height: 1.45; }
+  #anLegend .bands div { display: flex; align-items: center; gap: 8px; }
+  #anLegend .bands i { width: 30px; height: 26px; display: inline-block; border: 1px solid rgba(0,0,0,.35); }
+  #solveDlg { position: absolute; left: 420px; top: 760px; width: 560px; background: #f6f7f9; border: 1px solid #8894a5; box-shadow: 0 10px 30px rgba(0,0,0,.35); color: #222; font-size: 22px; }
+  #solveDlg .h { background: #0f2f57; color: #fff; padding: 8px 14px; }
+  #solveDlg .b { padding: 18px; }
+  #solveBar { height: 26px; background: #dde3ea; border: 1px solid #9aa6b5; margin-top: 12px; }
+  #solveFill { height: 100%; width: 0; background: linear-gradient(90deg, #2f80ed, #56ccf2); }
+
+  /* ---------- dark HUD ---------- */
+  .hTitle { position: absolute; top: 64px; left: 0; right: 0; text-align: center; font-size: 56px; font-weight: bold; letter-spacing: 6px; }
+  .hSub { position: absolute; top: 146px; left: 0; right: 0; text-align: center; font-size: 25px; color: #8fb6c8; }
+  #simt { position: absolute; top: 222px; left: 50px; font: bold 40px monospace; color: #cfe8f2; }
+  #tag { position: absolute; top: 282px; left: 50px; font-size: 28px; padding: 6px 18px; border-radius: 10px; }
   #cbar { position: absolute; left: 56px; top: 400px; width: 34px; height: 820px; border-radius: 8px; border: 2px solid rgba(255,255,255,.4); }
   #cbarT { position: absolute; left: 56px; top: 350px; font-size: 28px; color: #cfe8f2; }
-  .tick { position: absolute; left: 104px; font: 24px monospace; color: #cfe8f2; transform: translateY(-50%); }
+  .tick { position: absolute; left: 104px; font: 23px monospace; color: #cfe8f2; transform: translateY(-50%); }
   #chart { position: absolute; left: 50px; top: 1390px; }
-  .readout { font: bold 64px monospace; text-shadow: 0 0 18px rgba(255,160,60,.6); }
-  .readout small { font-size: 30px; }
+  .readout { font: bold 60px monospace; text-shadow: 0 0 18px rgba(255,160,60,.6); }
+  .readout small { font-size: 28px; }
 
-  /* ---------- Claude UI ---------- */
-  #claudeUI { background: #262624; }
-  #cHead { position: absolute; top: 0; left: 0; right: 0; height: 150px; display: flex; align-items: center;
-    justify-content: space-between; padding: 0 48px; border-bottom: 1px solid #3a3936; font-size: 40px; }
-  #cHead .name { display: flex; align-items: center; gap: 16px; font-size: 44px; }
-  .pill { font-size: 28px; border: 2px solid #5b4a42; color: #f0c2ad; background: #3a2d27; padding: 8px 22px; border-radius: 40px; }
-  #uBubble { position: absolute; right: 48px; top: 210px; width: 820px; background: #3a3936; border-radius: 34px;
-    padding: 30px 36px; font-size: 38px; line-height: 1.5; }
-  #aRow { position: absolute; left: 48px; top: 520px; right: 48px; }
-  #thinkHead { display: flex; align-items: center; gap: 22px; font-size: 38px; }
-  #thinkTxt { background: linear-gradient(90deg, #8a857c 0%, #fff 50%, #8a857c 100%); background-size: 300% 100%;
-    -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: bold; }
-  #thinkTime { color: #8a857c; font-size: 32px; }
-  #thoughts { margin-top: 30px; margin-left: 30px; border-left: 4px solid #4a4844; padding-left: 30px;
-    font-size: 31px; line-height: 1.65; color: var(--muted); }
-  #thoughts div { opacity: 0; }
-  #answer { margin-top: 34px; font-size: 38px; line-height: 1.5; }
-  #cInput { position: absolute; left: 40px; right: 40px; bottom: 170px; height: 150px; background: #30302e;
-    border: 2px solid #44423e; border-radius: 36px; padding: 30px 36px; font-size: 34px; color: #e8e4dc; }
-  #sendBtn { position: absolute; right: 26px; bottom: 26px; width: 80px; height: 80px; border-radius: 22px;
-    background: var(--claude); color: #fff; font-size: 44px; display: flex; align-items: center; justify-content: center; }
-
-  /* ---------- mascot + summary + spectrum ---------- */
-  #mascot { position: absolute; left: 0; top: 0; width: 150px; height: 150px; }
-  #bubble { position: absolute; background: #fff; color: #222; font-size: 34px; font-weight: bold; padding: 14px 26px;
-    border-radius: 24px; white-space: nowrap; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
-  #summary { position: absolute; left: 60px; right: 60px; top: 1010px; background: rgba(16,20,28,.9);
-    border: 2px solid rgba(217,119,87,.7); border-radius: 30px; padding: 40px 46px; font-size: 34px; line-height: 1.8; }
-  #summary h2 { font-size: 46px; margin-bottom: 14px; color: #f6c3ad; }
-  #summary .k { color: #8fb6c8; }
-  #summary .note { font-size: 24px; color: #7d8590; margin-top: 12px; line-height: 1.5; }
-  #spec { position: absolute; left: 0; bottom: 18px; }
+  /* ---------- mascot, summary, spectrum ---------- */
+  #mascot { position: absolute; left: 0; top: 0; }
+  #bubble { position: absolute; left: 0; top: 0; background: #fff; color: #222; font-size: 33px; font-weight: bold; padding: 12px 24px;
+    border: 4px solid #222; border-radius: 6px; white-space: nowrap; box-shadow: 6px 6px 0 rgba(0,0,0,.35); }
+  #fx { position: absolute; inset: 0; }
+  #summary { position: absolute; left: 50px; right: 50px; top: 1080px; background: rgba(16,20,28,.9);
+    border: 2px solid rgba(217,119,87,.7); border-radius: 26px; padding: 34px 40px; font-size: 31px; line-height: 1.75; }
+  #summary h2 { font-size: 44px; margin-bottom: 10px; color: #f6c3ad; }
+  #summary .k { color: #8fb6c8; } #summary .warn { color: #ffb86b; }
+  #summary .note { font-size: 22px; color: #7d8590; margin-top: 10px; line-height: 1.5; }
+  #spec { position: absolute; left: 0; bottom: 60px; opacity: .85; }
 </style>
 </head>
 <body>
-<div class="layer" id="bgLight"></div>
+<div class="layer" id="bgSW"></div>
+<div class="layer" id="bgAns"></div>
 <div class="layer" id="bgDark"></div>
+<div class="layer" id="bgBeauty"></div>
 <canvas id="gl" width="1080" height="1920"></canvas>
 <svg id="ov" width="1080" height="1920" viewBox="0 0 1080 1920"></svg>
 <div class="layer" id="labels"></div>
 
-<div class="layer" id="cad">
-  <div id="toolbar">
-    <div class="tool" data-k="sketch"><span class="ic">✎</span>草图</div>
-    <div class="tool" data-k="extrude"><span class="ic">⇧</span>拉伸</div>
-    <div class="tool" data-k="coat"><span class="ic">▣</span>漆膜</div>
-    <div class="tool" data-k="strip"><span class="ic">✂</span>剥漆</div>
-    <div class="tool" data-k="weld"><span class="ic">🔥</span>热仿真</div>
+<!-- ======================= CAD UI ======================= -->
+<div class="layer" id="sw">
+  <div id="swTitle"><div class="menu"><span>文件</span><span>编辑</span><span>视图</span><span>插入</span><span>工具</span></div>扁铜线焊接.SLDPRT *</div>
+  <div id="swCmd"></div>
+  <div id="swTabs"><span data-k="feat">特征</span><span data-k="sketch">草图</span><span>标注</span><span>评估</span><span>直接编辑</span><span>渲染工具</span></div>
+  <div id="swLeft"><div id="swLeftTabs"><i></i><i></i><i></i><i></i></div><div id="swTree"></div></div>
+  <div id="swPM">
+    <div class="h"><span>凸台-拉伸1</span><span><span class="ok">✔</span> <span class="no">✖</span></span></div>
+    <div class="grp"><div class="gh">从(F)</div><div class="gb">草图基准面</div></div>
+    <div class="grp"><div class="gh">方向 1(1)</div><div class="gb">给定深度 ▾<br>D1 <span class="inp" id="pmD">100.00mm</span><br>☑ 合并结果</div></div>
+    <div class="grp"><div class="gh">所选轮廓(S)</div><div class="gb">草图1-轮廓&lt;1&gt;<br>草图1-轮廓&lt;2&gt;</div></div>
   </div>
-  <div id="tree">
-    <b>▾ 扁铜线 2×3.2</b>
-    <div data-k="sketch">· 草图1 (2.0×3.2)</div>
-    <div data-k="extrude">· 拉伸1 H=100</div>
-    <div data-k="coat">· 漆膜 聚酰亚胺</div>
-    <div data-k="strip">· 剥漆 10 mm</div>
-    <div data-k="weld">· 焊接热分析</div>
-  </div>
-  <div id="status"></div>
+  <div id="swHUD"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div id="swCorner"><span style="color:#2e9b3a">✔</span><span style="color:#c0392b">✖</span></div>
+  <svg id="triad" width="120" height="120" viewBox="-60 -60 120 120"></svg>
+  <div id="swView">*等轴测</div>
+  <div id="swStatus"><span id="swStat"></span><span>完全定义　|　MMGS ▾</span></div>
 </div>
 
+<!-- ======================= Simulation UI ======================= -->
+<div class="layer" id="ans">
+  <div id="anTitle"><b>A : 瞬态热</b><span>— 扁铜线焊接 · Mechanical</span></div>
+  <div id="anRibbon">
+    <div id="anTabs"><span>文件</span><span class="on">主页</span><span>环境</span><span>显示</span><span>选择</span><span>自动化</span></div>
+    <div id="anBtns"></div>
+  </div>
+  <div id="anOutline"><div class="ph">轮廓</div><div id="anTree"></div></div>
+  <div id="anDetails"><div class="ph" id="anDetH"></div><table id="anDet"></table></div>
+  <div id="anGraph"><div class="ph">图形 · 表格数据</div><canvas id="anChart" width="1080" height="250"></canvas></div>
+  <div id="anLegend"></div>
+  <div id="solveDlg"><div class="h">求解状态</div><div class="b"><div id="solveTxt"></div><div id="solveBar"><div id="solveFill"></div></div></div></div>
+</div>
+
+<!-- ======================= dark HUD ======================= -->
 <div class="layer" id="hud">
-  <div class="title">焊接热仿真 · 剥漆顶面</div>
-  <div class="sub">激光焊 · 吸收功率 850 W · 光斑 σ0.55 mm · 脉冲 0.12 s</div>
+  <div class="hTitle" id="hTitle"></div>
+  <div class="hSub" id="hSub"></div>
   <div id="simt"></div>
   <div id="tag"></div>
   <div id="cbarT">℃</div>
@@ -116,39 +182,43 @@
   <canvas id="chart" width="980" height="300"></canvas>
 </div>
 
-<div class="layer" id="claudeUI">
-  <div id="cHead"><span>≡</span><span class="name"><span id="hdIcon"></span>Claude</span><span class="pill">Max · 深度思考</span></div>
-  <div id="uBubble">扁铜线 2×3.2 截面，高度 100，顶部剥漆 10 mm。画完在剥漆顶面做焊接热仿真。</div>
-  <div id="aRow">
-    <div id="thinkHead"><span id="thinkIcon"></span><span id="thinkTxt">Thinking</span><span id="thinkTime"></span></div>
-    <div id="thoughts">
-      <div>截面 2.0 × 3.2 mm，拉伸 100 mm …</div>
-      <div>顶部 10 mm 去除聚酰亚胺漆膜，露出裸铜</div>
-      <div>材料：无氧铜 C11000，k = 390 W/m·K</div>
-      <div>网格 10 × 16 × 200 = 32,000 节点</div>
-      <div>热源：高斯面热源 850 W × 0.12 s，计入熔化潜热</div>
-      <div>显式差分 Δt = 33 μs，求解 3.0 s 冷却过程 …</div>
-      <div>关注点：漆皮边界（距顶 10 mm）温升</div>
+<!-- ======================= Claude Code ======================= -->
+<div class="layer" id="cc">
+  <div id="ccBar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span style="margin-left:20px">~/weld-sim — claude</span></div>
+  <div id="ccBody">
+    <div id="ccWelcome"><div style="width:150px;height:130px"></div>
+      <div><div class="t1"><span class="orange">✻</span> Claude Code</div><div class="t2">Opus · Claude Max</div><div class="t2">~/weld-sim</div></div></div>
+    <div id="ccPrompt"><span class="gt">&gt; </span><span id="ccTyped"></span></div>
+    <div id="ccHint"><span>? for shortcuts</span><span id="ccEffTag"></span></div>
+    <div id="effort"><div class="head">推理强度 Effort　← →</div>
+      <div id="effLevels"><span>low</span><span>medium</span><span>high</span><span>xhigh</span><span id="effMax">max</span></div>
+      <div id="effTrack"><div id="effFill"></div></div></div>
+    <div id="ccLog">
+      <div><span class="orange" id="spin">✻</span> Cogitating… <span class="grey" id="ccTok"></span></div>
+      <div><span class="green">⏺</span> Write(<b>wires_sw.py</b>)</div>
+      <div class="grey">　⎿ 2 × 扁铜线 2×3.2×100 · 并排 · 剥漆 10 mm</div>
+      <div><span class="green">⏺</span> Bash(<b>python weld_sim.py --keyhole</b>)</div>
+      <div class="grey">　⎿ 64,000 节点 · 瞬态热 · 钥匙孔体热源</div>
+      <div><span class="orange">⏺</span> 打开 CAD，开始建模 →</div>
     </div>
-    <div id="answer"></div>
   </div>
-  <div id="cInput"><span id="typing"></span><div id="sendBtn">↑</div></div>
 </div>
 
 <div class="layer" id="summaryL">
   <div id="summary">
     <h2>✓ 仿真结论</h2>
-    <div><span class="k">几何</span>　2.0 × 3.2 × 100 mm · 剥漆 10 mm</div>
-    <div><span class="k">峰值温度</span>　<b id="sTmax"></b> ℃ · 熔池深 ≈ <b id="sMelt"></b> mm</div>
-    <div><span class="k">漆皮边界</span>　峰值 <b id="sEdge"></b> ℃（t ≈ 0.7 s）</div>
-    <div><span class="k">距顶 20 mm</span>　峰值 <b id="s80"></b> ℃</div>
-    <div class="note">3D 瞬态导热 · 32,000 节点 · 底端夹具 25 ℃ · 计入熔化潜热<br>简化模型：未计熔池流动、蒸发与漆膜热阻，结果仅作示意</div>
+    <div><span class="k">几何</span>　2 × (2.0×3.2×100 mm) 并排 · 剥漆 10 mm</div>
+    <div><span class="k">钥匙孔</span>　深 <b id="sKh"></b> mm · 峰值 <b id="sTmax"></b> ℃（孔壁≈沸点）</div>
+    <div><span class="k">熔池</span>　熔深 <b id="sMelt"></b> mm · 熔宽 <b id="sWid"></b> mm · 两根全熔合 ✓</div>
+    <div class="warn"><span class="k">漆皮边界</span>　峰值 <b id="sEdge"></b> ℃ ⚠ 建议加夹具散热 / 缩短脉冲</div>
+    <div class="note">3D 瞬态导热 · 64,000 节点 · 高斯面热源 + 锥形体热源（钥匙孔）· 计入熔化潜热 · 接触热导 3×10⁴ W/m²K，熔合后完全导热<br>熔池流动箭头为示意，未计蒸发反冲与流体力学</div>
   </div>
 </div>
 
+<canvas id="fx" width="1080" height="1920"></canvas>
 <div id="mascot"></div>
 <div id="bubble"></div>
-<canvas id="spec" width="1080" height="110"></canvas>
+<canvas id="spec" width="1080" height="80"></canvas>
 
 <script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js",
   "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
@@ -156,396 +226,710 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-const VW = 1080, VH = 1920, FPS = 30, DURATION = 32;
+const VW = 1080, VH = 1920, FPS = 30, DURATION = 42;
 const $ = (id) => document.getElementById(id);
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const smooth = (x) => { x = clamp(x); return x * x * (3 - 2 * x); };
 const seg = (t, a, b) => smooth((t - a) / (b - a));
 const lerp = (a, b, u) => a + (b - a) * u;
 const fade = (t, a, b, c, d) => Math.min(seg(t, a, b), 1 - seg(t, c, d));
+const show = (id, op) => { const e = $(id); e.style.opacity = op; e.style.visibility = op > 0.001 ? 'visible' : 'hidden'; };
+const setHTML = (e, html) => { if (e._h !== html) { e.innerHTML = html; e._h = html; } };
+
+// scene boundaries (s)
+const S = { sw: 5.2, ans: 17.0, weld: 23.0, sec: 31.0, end: 36.0 };
 
 // ---------------------------------------------------------------- data
 const meta = await (await fetch('data/meta.json')).json();
 const field = new Uint16Array(await (await fetch('data/field.bin')).arrayBuffer());
 const spectrum = await (await fetch('data/spectrum.json')).json();
 const { nx, ny, nz } = meta, P = meta.probes, NCELL = nx * ny * nz;
+const HW = meta.W / 2, HD = meta.D / 2;
 
-// ---------------------------------------------------------------- starburst icon (SVG)
-function starSVG(size, color = '#d97757') {
-  let rays = '';
-  for (let i = 0; i < 12; i++) {
-    const len = i % 2 ? 40 : 46;
-    rays += `<rect x="-5.5" y="${-len}" width="11" height="${len - 8}" rx="5.5" transform="rotate(${i * 30})" fill="${color}"/>`;
+// ---------------------------------------------------------------- pixel mascot
+const BODY = ['..oooooooo..', '..oooooooo..', '..okooooko..', '..okooooko..', 'oooooooooooo', 'oooooooooooo', '..oooooooo..', '..oooooooo..'];
+const LEGS = [['..o.o..o.o..', '..o.o..o.o..'], ['.o.o....o.o.', '.o.o....o.o.']];
+function mascotSVG(o) {
+  const body = o.hot ? '#e8553a' : '#d97757';
+  let r = '';
+  const px = (x, y, c, w = 1, h = 1) => { r += `<rect x="${x}" y="${y}" width="${w + 0.02}" height="${h + 0.02}" fill="${c}"/>`; };
+  if (o.chute) {
+    r += `<path d="M-4,-9 Q6,-22 16,-9 Z" fill="#e74c3c"/><path d="M1,-9 Q6,-20 11,-9 Z" fill="#fff"/>`;
+    r += `<path d="M-4,-9 L2,0 M16,-9 L10,0 M6,-9 L6,0" stroke="#555" stroke-width=".3"/>`;
   }
-  return `<svg width="${size}" height="${size}" viewBox="-50 -50 100 100"><g class="rot">${rays}<circle r="11" fill="${color}"/></g></svg>`;
+  BODY.forEach((row, y) => [...row].forEach((c, x) => {
+    if (o.armsUp && (y === 4 || y === 5) && (x < 2 || x > 9)) return;
+    if (c === 'o') px(x, y, body);
+    if (c === 'k') px(x, y, o.blink ? body : '#1b1b1b');
+  }));
+  if (o.armsUp) { px(0, 1, body, 2, 3); px(10, 1, body, 2, 3); }
+  LEGS[o.walk ? o.legFrame : 0].forEach((row, y) => [...row].forEach((c, x) => { if (c === 'o') px(x, 8 + y, body); }));
+  if (o.hat) { px(2, -2, '#f5c518', 8, 2); px(1, -0.6, '#e0a800', 10, 0.8); }
+  if (o.goggles) { px(1, 2, '#222', 10, 2); px(3, 2.3, '#4fd1ff', 1, 1.4); px(8, 2.3, '#4fd1ff', 1, 1.4); }
+  if (o.sweat) { px(12.5, -1 + o.sweatPh, '#6ec6ff', 1, 1.4); px(-1.5, 0.5 + o.sweatPh, '#6ec6ff', 1, 1.4); }
+  if (o.sparkle) ['#ffd36e', '#7cf2c8', '#c38bff'].forEach((c, i) => px(-2 + i * 7.5, -4 - (i % 2) * 2, c, 1, 1));
+  return `<svg width="${16 * o.ps}" height="${26 * o.ps}" viewBox="-2 -16 16 26" shape-rendering="crispEdges">${r}</svg>`;
 }
-$('hdIcon').innerHTML = starSVG(54);
-$('thinkIcon').innerHTML = starSVG(70);
-$('mascot').innerHTML = starSVG(150);
 
 // ---------------------------------------------------------------- three.js scene
 const renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setSize(VW, VH, false);
 renderer.setClearColor(0x000000, 0);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.localClippingEnabled = true;
 const scene = new THREE.Scene();
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
-const camera = new THREE.PerspectiveCamera(30, VW / VH, 0.1, 2000);
-scene.add(new THREE.DirectionalLight(0xffffff, 1.6).translateX(30).translateY(80).translateZ(50));
-scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+const camera = new THREE.PerspectiveCamera(30, VW / VH, 0.1, 3000);
+const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(30, 80, 50); scene.add(key);
+const rim = new THREE.DirectionalLight(0xffb27a, 0); rim.position.set(-40, 60, -60); scene.add(rim);
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
 
-const grid = new THREE.GridHelper(40, 40, 0x8a94a6, 0xb9c0cc);
-grid.material.transparent = true;
-scene.add(grid);
+const grid = new THREE.GridHelper(40, 40, 0x8a94a6, 0xc4cad4);
+grid.material.transparent = true; scene.add(grid);
 
-const wireGeo = new THREE.BoxGeometry(2, 100, 3.2, 10, 200, 16).translate(0, 50, 0);
-const copper = new THREE.Mesh(wireGeo, new THREE.MeshStandardMaterial({ color: 0xffa060, metalness: 0.55, roughness: 0.22, envMapIntensity: 2.0, transparent: true }));
-scene.add(copper);
+const wires = [-1, 1].map((cx) => {
+  const geo = new THREE.BoxGeometry(2, 100, 3.2).translate(cx, 50, 0);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xb8bec8, metalness: 0.3, roughness: 0.45, transparent: true }));
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0x111111, transparent: true }));
+  scene.add(mesh, edges);
+  return { mesh, edges };
+});
+const enamels = [-1, 1].map((cx) => {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(2.06, 1, 3.26).translate(cx, 0.5, 0),
+    new THREE.MeshStandardMaterial({ color: 0x6e260a, metalness: 0.1, roughness: 0.18, envMapIntensity: 1.5, transparent: true }));
+  scene.add(m); return m;
+});
 
-// heat mesh: per-vertex colour from the simulated field
-const heatGeo = wireGeo.clone();
+// heat mesh covering both wires
+const heatGeo = new THREE.BoxGeometry(4, 100, 3.2, 20, 200, 16).translate(0, 50, 0);
 const vcount = heatGeo.attributes.position.count;
 heatGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(vcount * 3), 3));
-const heat = new THREE.Mesh(heatGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true }));
+const clipPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
+const heat = new THREE.Mesh(heatGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, side: THREE.DoubleSide }));
 scene.add(heat);
+const cellOf = (x, z, y) => {
+  const i = clamp(Math.floor((x + HW) / 0.2), 0, nx - 1), j = clamp(Math.floor((z + HD) / 0.2), 0, ny - 1), k = clamp(Math.floor(y / 0.5), 0, nz - 1);
+  return (i * ny + j) * nz + k;
+};
 const vIdx = new Int32Array(vcount), vShade = new Float32Array(vcount);
 {
   const pos = heatGeo.attributes.position, nor = heatGeo.attributes.normal;
   for (let v = 0; v < vcount; v++) {
-    const i = clamp(Math.floor((pos.getX(v) + 1) / 0.2), 0, nx - 1);
-    const j = clamp(Math.floor((pos.getZ(v) + 1.6) / 0.2), 0, ny - 1);
-    const k = clamp(Math.floor(pos.getY(v) / 0.5), 0, nz - 1);
-    vIdx[v] = (i * ny + j) * nz + k;
+    vIdx[v] = cellOf(pos.getX(v), pos.getZ(v), pos.getY(v));
     const n = [nor.getX(v), nor.getY(v), nor.getZ(v)];
     vShade[v] = n[1] > 0.5 ? 1.0 : n[1] < -0.5 ? 0.45 : Math.abs(n[0]) > 0.5 ? 0.74 : 0.9;
   }
 }
+const joint = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+  new THREE.Vector3(0, 0, 1.605), new THREE.Vector3(0, 100.01, 1.605), new THREE.Vector3(0, 100.01, 1.605), new THREE.Vector3(0, 100.01, -1.605)]),
+  new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6 }));
+scene.add(joint);
 
-const enamel = new THREE.Mesh(new THREE.BoxGeometry(2.18, 1, 3.38).translate(0, 0.5, 0),
-  new THREE.MeshStandardMaterial({ color: 0x6e260a, metalness: 0.1, roughness: 0.18, envMapIntensity: 1.5, transparent: true }));
-scene.add(enamel);
+// section face (mid-plane z = 0), top 12 mm
+const secGeo = new THREE.PlaneGeometry(4, 12, 20, 24).translate(0, 94, 0.002);
+secGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(secGeo.attributes.position.count * 3), 3));
+const section = new THREE.Mesh(secGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+scene.add(section);
 
-// glow sprite, laser beam and sparks
+// mesh wireframe (simulation look), ordered top-down so it "sweeps" in
+const meshLines = (() => {
+  const p = [], add = (a, b) => p.push(...a, ...b);
+  const levels = []; for (let y = 0; y < 80; y += 2) levels.push(y); for (let y = 80; y < 90; y += 1) levels.push(y); for (let y = 90; y <= 100; y += 0.5) levels.push(y);
+  for (const y of levels) { const c = [[-2, y, -1.6], [2, y, -1.6], [2, y, 1.6], [-2, y, 1.6]]; for (let i = 0; i < 4; i++) add(c[i], c[(i + 1) % 4]); }
+  for (let x = -2; x <= 2.001; x += 0.4) { add([x, 0, 1.6], [x, 100, 1.6]); add([x, 0, -1.6], [x, 100, -1.6]); add([x, 100, -1.6], [x, 100, 1.6]); }
+  for (let z = -1.6; z <= 1.601; z += 0.4) { add([2, 0, z], [2, 100, z]); add([-2, 0, z], [-2, 100, z]); add([-2, 100, z], [2, 100, z]); }
+  const segs = []; for (let i = 0; i < p.length; i += 6) segs.push(p.slice(i, i + 6));
+  segs.sort((a, b) => Math.max(b[1], b[4]) - Math.max(a[1], a[4]));
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(segs.flat(), 3));
+  const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x1b2a3c, transparent: true, opacity: 0.55 }));
+  l.userData.n = segs.length; scene.add(l); return l;
+})();
+
+// weld bead (dome)
+const beadGeo = new THREE.SphereGeometry(1, 40, 14, 0, Math.PI * 2, 0, Math.PI / 2);
+beadGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(beadGeo.attributes.position.count * 3), 3));
+const beadHeatMat = new THREE.MeshBasicMaterial({ vertexColors: true });
+const beadCuMat = new THREE.MeshStandardMaterial({ color: 0xd98a58, metalness: 0.85, roughness: 0.32, envMapIntensity: 2.2 });
+const bead = new THREE.Mesh(beadGeo, beadHeatMat);
+bead.position.set(0, 100, 0); scene.add(bead);
+
 function radialTex(stops) {
   const c = document.createElement('canvas'); c.width = c.height = 256;
   const g = c.getContext('2d'), gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-  stops.forEach(([o, col]) => gr.addColorStop(o, col));
-  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  stops.forEach(([o, col]) => gr.addColorStop(o, col)); g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
   return new THREE.CanvasTexture(c);
 }
 const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex([[0, 'rgba(255,255,240,1)'], [0.25, 'rgba(255,200,90,.8)'], [0.6, 'rgba(255,90,20,.25)'], [1, 'rgba(255,60,0,0)']]),
   blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-glow.position.set(0, 100.2, 0);
 scene.add(glow);
-const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.45, 7, 24, 1, true).translate(0, 103.5, 0),
+const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.5, 5, 24, 1, true).translate(0, 102.5, 0),
   new THREE.MeshBasicMaterial({ color: 0x9fe8ff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
 scene.add(beam);
-const NSP = 260, sp = [];
+const mouth = new THREE.Mesh(new THREE.CircleGeometry(0.42, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x0c0603 }));
+const mouthRim = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.62, 40).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0xfff3c4, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+scene.add(mouth, mouthRim);
+const ripples = [0, 1, 2].map(() => {
+  const m = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.0, 48).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0xffe2a0, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+  scene.add(m); return m;
+});
 let seed = 12345; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-for (let i = 0; i < NSP; i++) {
-  const a = rnd() * Math.PI * 2, s = 8 + rnd() * 22;
-  sp.push({ birth: rnd() * 0.95, life: 0.25 + rnd() * 0.5, vx: Math.cos(a) * s * 0.6, vz: Math.sin(a) * s * 0.6, vy: 6 + rnd() * 18 });
+function particles(n, color, size) {
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  const p = new THREE.Points(g, new THREE.PointsMaterial({ color, size, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+  scene.add(p);
+  p.userData.list = Array.from({ length: n }, () => ({ birth: rnd(), life: 0.2 + rnd() * 0.5, a: rnd() * Math.PI * 2, s: rnd(), vy: rnd() }));
+  return p;
 }
-const spGeo = new THREE.BufferGeometry();
-spGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(NSP * 3), 3));
-const sparks = new THREE.Points(spGeo, new THREE.PointsMaterial({ color: 0xffc860, size: 0.18, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
-scene.add(sparks);
+const sparks = particles(260, 0xffc860, 0.16);
+const plume = particles(220, 0x9d8cff, 0.32);
 
-// ---------------------------------------------------------------- colour map
-const CMAP = [[0, '#0b1a3a'], [0.14, '#22207a'], [0.3, '#7b1fa2'], [0.45, '#d81b60'], [0.6, '#f4511e'], [0.75, '#ff9800'], [0.9, '#ffd54f'], [1, '#ffffff']]
-  .map(([s, h]) => [s, new THREE.Color(h)]);
-const TMIN = 25, TMAXC = 1400;
+// ---------------------------------------------------------------- colour maps
+const CMAP = [[0, '#0b1a3a'], [0.14, '#22207a'], [0.3, '#7b1fa2'], [0.45, '#d81b60'], [0.6, '#f4511e'], [0.75, '#ff9800'], [0.9, '#ffd54f'], [1, '#ffffff']].map(([s, h]) => [s, new THREE.Color(h)]);
+const BANDS = ['#0000ff', '#0055ff', '#00aaff', '#00ffff', '#00ff55', '#aaff00', '#ffff00', '#ffaa00', '#ff0000'].map((h) => new THREE.Color(h));
+const TMIN = 25, TMAXC = 2560;
 const sOf = (T) => Math.sqrt(clamp((T - TMIN) / (TMAXC - TMIN)));
 function cmap(s, out) {
-  for (let i = 1; i < CMAP.length; i++) if (s <= CMAP[i][0]) {
-    const u = (s - CMAP[i - 1][0]) / (CMAP[i][0] - CMAP[i - 1][0]);
-    return out.copy(CMAP[i - 1][1]).lerp(CMAP[i][1], u);
-  }
+  for (let i = 1; i < CMAP.length; i++) if (s <= CMAP[i][0]) return out.copy(CMAP[i - 1][1]).lerp(CMAP[i][1], (s - CMAP[i - 1][0]) / (CMAP[i][0] - CMAP[i - 1][0]));
   return out.copy(CMAP[CMAP.length - 1][1]);
 }
-// colour bar + ticks
 $('cbar').style.background = `linear-gradient(to top, ${CMAP.map(([s, c]) => `#${c.getHexString()} ${s * 100}%`).join(',')})`;
-$('ticks').innerHTML = [25, 100, 250, 500, 1083, 1400].map((T) =>
-  `<div class="tick" style="top:${400 + 820 * (1 - sOf(T))}px">${T === 1083 ? '熔点 1083' : T}</div>`).join('');
+$('ticks').innerHTML = [[25, '25'], [100, '100'], [400, '400'], [1083, '熔点 1083'], [2562, '沸点 2562']].map(([T, s]) =>
+  `<div class="tick" style="top:${400 + 820 * (1 - sOf(T))}px">${s}</div>`).join('');
 
-// ---------------------------------------------------------------- field sampling
 function simFrame(simT) {
   const ts = P.t; let i = 0;
   while (i < ts.length - 2 && ts[i + 1] <= simT) i++;
   return [i, clamp((simT - ts[i]) / (ts[i + 1] - ts[i]))];
 }
+const probe = (k, simT) => { const [f, u] = simFrame(simT); return lerp(P[k][f], P[k][f + 1], u); };
 const tmpC = new THREE.Color();
-function paintHeat(simT) {
-  const [f, u] = simFrame(simT), o0 = f * NCELL, o1 = (f + 1) * NCELL;
+const Tcell = (f, u, c) => lerp(field[f * NCELL + c], field[(f + 1) * NCELL + c], u) / 10;
+function colorFor(T, mode, Tmx) {
+  if (mode === 'bands') return tmpC.copy(BANDS[clamp(Math.floor((T - 25) / (Tmx - 25) * 9), 0, 8)]);
+  return cmap(sOf(T), tmpC);
+}
+function paint(simT, mode) {
+  const [f, u] = simFrame(simT), Tmx = probe('Tmax', simT);
   const col = heatGeo.attributes.color.array;
   for (let v = 0; v < vcount; v++) {
-    const T = lerp(field[o0 + vIdx[v]], field[o1 + vIdx[v]], u) / 10;
-    cmap(sOf(T), tmpC);
-    col[v * 3] = tmpC.r * vShade[v]; col[v * 3 + 1] = tmpC.g * vShade[v]; col[v * 3 + 2] = tmpC.b * vShade[v];
+    const c = colorFor(Tcell(f, u, vIdx[v]), mode, Tmx);
+    col[v * 3] = c.r * vShade[v]; col[v * 3 + 1] = c.g * vShade[v]; col[v * 3 + 2] = c.b * vShade[v];
   }
   heatGeo.attributes.color.needsUpdate = true;
+  const bp = beadGeo.attributes.position, bc = beadGeo.attributes.color.array;
+  for (let v = 0; v < bp.count; v++) {
+    const c = colorFor(Tcell(f, u, cellOf(bp.getX(v) * 2, bp.getZ(v) * 1.6, 99.9)), mode, Tmx);
+    const sh = 0.75 + 0.25 * bp.getY(v);
+    bc[v * 3] = c.r * sh; bc[v * 3 + 1] = c.g * sh; bc[v * 3 + 2] = c.b * sh;
+  }
+  beadGeo.attributes.color.needsUpdate = true;
+  const sp = secGeo.attributes.position, sc = secGeo.attributes.color.array;
+  for (let v = 0; v < sp.count; v++) {
+    const x = sp.getX(v), y = sp.getY(v);
+    const c = colorFor((Tcell(f, u, cellOf(x, -0.1, y)) + Tcell(f, u, cellOf(x, 0.1, y))) / 2, mode, Tmx);
+    sc[v * 3] = c.r; sc[v * 3 + 1] = c.g; sc[v * 3 + 2] = c.b;
+  }
+  secGeo.attributes.color.needsUpdate = true;
 }
-const probe = (key, simT) => { const [f, u] = simFrame(simT); return lerp(P[key][f], P[key][f + 1], u); };
+function poolProfile(simT) {
+  const [f, u] = simFrame(simT), out = [];
+  for (let i = 0; i < nx; i++) {
+    let d = 0;
+    for (let k = nz - 1; k > nz - 12; k--) {
+      if (Tcell(f, u, (i * ny + ny / 2) * nz + k) > 1083) d = (nz - k) * 0.5; else break;
+    }
+    out.push([-HW + (i + 0.5) * 0.2, 100 - d, d]);
+  }
+  return out;
+}
 
-// ---------------------------------------------------------------- camera keyframes
+// ---------------------------------------------------------------- camera
 const KEYS = [
-  [0, [6, 7, 9], [0, 0, 0]], [8.0, [6, 7, 9], [0, 0, 0]], [10.0, [7.5, 6, 10], [0, 0, 0]],
-  [12.5, [110, 95, 190], [0, 50, 0]], [13.7, [-115, 90, 185], [0, 50, 0]],
-  [14.5, [26, 104, 40], [0, 93, 0]], [16.6, [-22, 104, 42], [0, 93, 0]],
-  [17.6, [26, 110, 40], [0, 93, 0]], [21.0, [-22, 110, 42], [0, 93, 0]],
-  [24.0, [34, 102, 56], [0, 87, 0]], [28.0, [-36, 100, 56], [0, 86, 0]],
-  [29.5, [34, 112, 64], [0, 84, 0]], [32, [40, 112, 60], [0, 84, 0]],
+  [0, [6, 8, 11], [0, 0, 0]], [S.sw, [6, 8, 11], [0, 0, 0]], [8.0, [7.5, 7, 12], [0, 0, 0]],
+  [10.6, [120, 95, 190], [0, 50, 0]], [11.6, [150, 100, 120], [0, 55, 0]],
+  [12.6, [26, 104, 42], [0, 93, 0]], [14.4, [-24, 104, 44], [0, 93, 0]], [16.8, [70, 98, 110], [0, 80, 0]],
+  [17.6, [56, 106, 96], [0, 91, 0]], [19.4, [40, 108, 70], [0, 93, 0]], [22.9, [-38, 108, 72], [0, 93, 0]],
+  [23.4, [24, 110, 38], [0, 95, 0]], [27.6, [-20, 110, 40], [0, 95, 0]], [30.8, [32, 104, 58], [0, 89, 0]],
+  [31.4, [0, 99.6, 24], [0, 98.4, 0]], [35.8, [0, 99.6, 23], [0, 98.4, 0]],
+  [37.0, [20, 108, 28], [0, 98, 0]], [42, [-18, 106, 30], [0, 98, 0]],
 ];
 function setCamera(t) {
   let i = 0; while (i < KEYS.length - 2 && KEYS[i + 1][0] <= t) i++;
   const [ta, pa, ga] = KEYS[i], [tb, pb, gb] = KEYS[i + 1], u = seg(t, ta, tb);
   camera.position.set(...pa.map((x, k) => lerp(x, pb[k], u)));
   camera.lookAt(new THREE.Vector3(...ga.map((x, k) => lerp(x, gb[k], u))));
+  // keep the model centred in the free graphics area of each UI
+  const ox = t < S.ans ? -160 : t < S.weld ? -165 : 0;
+  const oy = t < S.ans ? -90 : t < S.weld ? 40 : 0;
+  camera.setViewOffset(VW, VH, ox, oy, VW, VH);
   camera.updateMatrixWorld();
 }
 const proj = (x, y, z) => { const p = new THREE.Vector3(x, y, z).project(camera); return [(p.x + 1) / 2 * VW, (1 - p.y) / 2 * VH]; };
 
 // ---------------------------------------------------------------- overlay helpers
 const ov = $('ov'), labels = $('labels');
+ov.innerHTML = `<defs>
+  <marker id="arrK" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker>
+  <marker id="arrW" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#fff"/></marker>
+  <filter id="glowF"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+const used = new Set();
 function svgEl(id, tag, attrs) {
   let e = document.getElementById(id);
   if (!e) { e = document.createElementNS('http://www.w3.org/2000/svg', tag); e.id = id; ov.appendChild(e); }
   for (const k in attrs) e.setAttribute(k, attrs[k]);
-  return e;
+  used.add(id); return e;
 }
 function label(id, html, [x, y], style = '') {
   let e = document.getElementById(id);
   if (!e) { e = document.createElement('div'); e.id = id; e.className = 'lbl'; labels.appendChild(e); }
-  e.innerHTML = html; e.style.cssText = `left:${x}px;top:${y}px;${style}`;
-  return e;
+  setHTML(e, html);
+  e.style.cssText = `left:${x}px;top:${y}px;${style}`; used.add(id); return e;
 }
-const pts = (arr) => arr.map((p) => p.join(',')).join(' ');
-function dim(id, a, b, extA, extB, text, op, color = '#1d5bd8', textStyle = '') {
-  const A = proj(...a), B = proj(...b);
-  svgEl(id + 'L', 'polyline', { points: pts([A, B]), stroke: color, 'stroke-width': 4, fill: 'none', opacity: op, 'marker-start': 'url(#arr)', 'marker-end': 'url(#arr)' });
-  svgEl(id + 'EA', 'polyline', { points: pts(extA.map((p) => proj(...p))), stroke: color, 'stroke-width': 2.5, fill: 'none', opacity: op });
-  svgEl(id + 'EB', 'polyline', { points: pts(extB.map((p) => proj(...p))), stroke: color, 'stroke-width': 2.5, fill: 'none', opacity: op });
+const pts = (arr) => arr.map((p) => p.map((v) => v.toFixed(1)).join(',')).join(' ');
+function dim(id, a, b, extA, extB, text, op, color = '#111', textStyle = '') {
+  if (op <= 0.001) return;
+  const A = proj(...a), B = proj(...b), mk = color === '#111' ? 'url(#arrK)' : 'url(#arrW)';
+  svgEl(id + 'L', 'polyline', { points: pts([A, B]), stroke: color, 'stroke-width': 3, fill: 'none', opacity: op, 'marker-start': mk, 'marker-end': mk });
+  svgEl(id + 'EA', 'polyline', { points: pts(extA.map((p) => proj(...p))), stroke: color, 'stroke-width': 2, fill: 'none', opacity: op });
+  svgEl(id + 'EB', 'polyline', { points: pts(extB.map((p) => proj(...p))), stroke: color, 'stroke-width': 2, fill: 'none', opacity: op });
   label(id + 'T', text, [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2],
-    `opacity:${op};font:bold 40px monospace;color:${color};background:rgba(255,255,255,.85);padding:2px 14px;border-radius:10px;${textStyle}`);
+    `opacity:${op};font:bold 34px "WenQuanYi Zen Hei";color:${color};background:${color === '#111' ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.6)'};padding:0 10px;${textStyle}`);
 }
-ov.innerHTML = `<defs><marker id="arr" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-  <path d="M0,0 L10,5 L0,10 z" fill="#1d5bd8"/></marker></defs>`;
 
-// ---------------------------------------------------------------- chart (Tmax & enamel edge vs time)
+// ---------------------------------------------------------------- CAD chrome content
+const CMDS = [['拉伸凸\n台/基体', '#f1c232', 'extrude'], ['旋转凸\n台/基体', '#e69138'], ['扫描', '#93c47d'], ['放样凸\n台/基体', '#76a5af'],
+  ['拉伸切除', '#cc4125'], ['圆角', '#6fa8dc'], ['线性阵列', '#8e7cc3'], ['分割线', '#c27ba0', 'split']];
+$('swCmd').innerHTML = CMDS.map(([n, c, k]) => `<div class="cmd" data-k="${k || ''}"><svg class="ic" viewBox="0 0 50 46"><rect x="8" y="14" width="26" height="26" fill="${c}" stroke="#555"/><path d="M8,14 L18,4 L44,4 L34,14 Z" fill="${c}" opacity=".7" stroke="#555"/><path d="M34,14 L44,4 L44,30 L34,40 Z" fill="${c}" opacity=".5" stroke="#555"/></svg>${n.replace('\n', '<br>')}</div>`).join('');
+const TREE = [
+  ['扁铜线焊接 (默认)', '#7f8fa6', 0], ['历史记录', '#b7b7b7', 0], ['传感器', '#b7b7b7', 0], ['注解', '#b7b7b7', 0],
+  ['MAT', '#c9a227', 0], ['前视基准面', '#9fc5e8', 0], ['上视基准面', '#9fc5e8', 0], ['右视基准面', '#9fc5e8', 0], ['原点', '#e06666', 0],
+  ['草图1', '#3d85c6', 5.6], ['凸台-拉伸1', '#f1c232', 9.9], ['分割线1', '#c27ba0', 12.8], ['外观 · 聚酰亚胺漆膜', '#990000', 13.9],
+];
+$('triad').innerHTML = `<line x1="0" y1="0" x2="40" y2="18" stroke="#d33" stroke-width="4"/><text x="44" y="26" fill="#d33" font-size="20">X</text>
+  <line x1="0" y1="0" x2="0" y2="-44" stroke="#2a2" stroke-width="4"/><text x="-6" y="-48" fill="#2a2" font-size="20">Y</text>
+  <line x1="0" y1="0" x2="-36" y2="22" stroke="#33d" stroke-width="4"/><text x="-54" y="34" fill="#33d" font-size="20">Z</text>`;
+
+// ---------------------------------------------------------------- simulation chrome content
+$('anBtns').innerHTML = [['求解', '#2f80ed', 'solve'], ['网格', '#27ae60', 'mesh'], ['热通量', '#e74c3c', 'bc'], ['对流', '#f2c94c', 'bc2'], ['温度', '#56ccf2', 'bc3'],
+  ['探针', '#9b51e0'], ['结果', '#f2994a', 'res'], ['报告', '#828282']].map(([n, c, k]) => `<div class="abtn" data-k="${k || ''}"><b style="background:${c}"></b>${n}</div>`).join('');
+const ATREE = [['项目', 0, 0], ['模型 (A4)', 1, 0], ['几何结构 · 铜线1, 铜线2', 2, 0], ['材料 · 无氧铜 C11000', 2, 0], ['连接 · 接触区域', 2, 0],
+  ['网格', 2, 18.6], ['瞬态热 (A5)', 1, 0], ['初始温度 25 ℃', 2, 0], ['分析设置 3.0 s', 2, 0], ['热通量 + 钥匙孔体热源', 2, 19.0], ['对流', 2, 19.3], ['温度 (夹具)', 2, 19.6],
+  ['求解 (A6)', 1, 21.8], ['温度', 2, 21.8], ['温度探针 · 漆皮边界', 2, 21.8]];
+function ansDetails(t) {
+  if (t < 18.8) return ['"网格"的详细信息', [['物理偏好', '热'], ['单元尺寸', '0.2 mm'], ['顶部加密', '0.5 mm (Z)'], ['节点', Math.round(64000 * seg(t, 17.4, 18.6)).toLocaleString()], ['单元', Math.round(57000 * seg(t, 17.4, 18.6)).toLocaleString()]]];
+  if (t < 20.0) return ['"热通量"的详细信息', [['范围', '剥漆顶面'], ['类型', '高斯面 + 锥形体热源'], ['吸收功率', `${meta.P_abs} W`], ['钥匙孔深', `${meta.keyhole_max} mm`], ['作用时间', `${meta.t_on} s`]]];
+  return ['"求解"的详细信息', [['分析', '瞬态热'], ['时间步', '33 μs'], ['终止时间', '3.0 s'], ['状态', t < 21.8 ? '求解中…' : '✔ 已完成']]];
+}
+const anChart = $('anChart'), acg = anChart.getContext('2d');
+function drawAnChart(prog) {
+  acg.clearRect(0, 0, 1080, 250); acg.fillStyle = '#fff'; acg.fillRect(0, 0, 1080, 250);
+  const L = 80, R = 40, T = 20, B = 40, X = (s) => L + (1080 - L - R) * s / 3, Y = (v) => 250 - B - (250 - B - T) * v / 2600;
+  acg.strokeStyle = '#d5dbe3'; acg.lineWidth = 1; acg.font = '18px monospace'; acg.fillStyle = '#555';
+  for (const v of [0, 1000, 2000]) { acg.beginPath(); acg.moveTo(L, Y(v)); acg.lineTo(1080 - R, Y(v)); acg.stroke(); acg.fillText(v, 12, Y(v) + 6); }
+  for (const s of [0, 1, 2, 3]) acg.fillText(s + ' s', X(s) - 14, 240);
+  const tEnd = 3 * prog;
+  [['Tmax', '#e74c3c'], ['T_edge', '#2f80ed']].forEach(([k, c]) => {
+    acg.strokeStyle = c; acg.lineWidth = 3; acg.beginPath();
+    P.t.forEach((tt, i) => { if (tt <= tEnd) (i ? acg.lineTo(X(tt), Y(P[k][i])) : acg.moveTo(X(tt), Y(P[k][i]))); });
+    acg.stroke();
+  });
+  acg.font = '20px "WenQuanYi Zen Hei"';
+  acg.fillStyle = '#e74c3c'; acg.fillText('最高温度', L + 20, T + 16); acg.fillStyle = '#2f80ed'; acg.fillText('漆皮边界', L + 140, T + 16);
+}
+
+// ---------------------------------------------------------------- dark HUD chart
 const chart = $('chart'), cg = chart.getContext('2d');
 function drawChart(simT, op) {
   chart.style.opacity = op;
+  if (op <= 0) return;
   const W = 980, H = 300, L = 90, B = 50, T = 20, R = 20;
-  cg.clearRect(0, 0, W, H);
-  cg.fillStyle = 'rgba(10,16,24,.75)'; cg.fillRect(0, 0, W, H);
+  cg.clearRect(0, 0, W, H); cg.fillStyle = 'rgba(10,16,24,.75)'; cg.fillRect(0, 0, W, H);
   cg.strokeStyle = 'rgba(140,190,210,.25)'; cg.lineWidth = 1; cg.font = '22px monospace'; cg.fillStyle = '#8fb6c8';
-  const X = (s) => L + (W - L - R) * s / 3, Y = (v) => H - B - (H - B - T) * v / 1500;
-  for (const v of [0, 500, 1000, 1500]) { cg.beginPath(); cg.moveTo(L, Y(v)); cg.lineTo(W - R, Y(v)); cg.stroke(); cg.fillText(v, 10, Y(v) + 7); }
+  const X = (s) => L + (W - L - R) * s / 3, Y = (v) => H - B - (H - B - T) * v / 2700;
+  for (const v of [0, 1000, 2000]) { cg.beginPath(); cg.moveTo(L, Y(v)); cg.lineTo(W - R, Y(v)); cg.stroke(); cg.fillText(v, 10, Y(v) + 7); }
   for (const s of [0, 1, 2, 3]) cg.fillText(s + 's', X(s) - 12, H - 16);
-  const line = (key, color) => {
-    cg.strokeStyle = color; cg.lineWidth = 4; cg.beginPath();
-    let first = true;
-    for (let i = 0; i < P.t.length && P.t[i] <= simT; i++) { const x = X(P.t[i]), y = Y(P[key][i]); first ? cg.moveTo(x, y) : cg.lineTo(x, y); first = false; }
-    cg.lineTo(X(simT), Y(probe(key, simT))); cg.stroke();
+  const line = (k, color) => {
+    cg.strokeStyle = color; cg.lineWidth = 4; cg.beginPath(); let first = true;
+    for (let i = 0; i < P.t.length && P.t[i] <= simT; i++) { const x = X(P.t[i]), y = Y(P[k][i]); first ? cg.moveTo(x, y) : cg.lineTo(x, y); first = false; }
+    cg.lineTo(X(simT), Y(probe(k, simT))); cg.stroke();
   };
   line('Tmax', '#ffb340'); line('T_edge', '#4fd1ff'); line('T_80', '#9b8cff');
   cg.font = 'bold 24px "WenQuanYi Zen Hei"';
-  [['顶面最高温', '#ffb340'], ['漆皮边界', '#4fd1ff'], ['距顶 20 mm', '#9b8cff']].forEach(([n, c], i) => {
-    cg.fillStyle = c; cg.fillRect(L + 20 + i * 260, T + 8, 26, 8); cg.fillText(n, L + 54 + i * 260, T + 20);
-  });
+  [['最高温', '#ffb340'], ['漆皮边界', '#4fd1ff'], ['距顶 20 mm', '#9b8cff']].forEach(([n, c], i) => { cg.fillStyle = c; cg.fillRect(L + 20 + i * 250, T + 8, 26, 8); cg.fillText(n, L + 54 + i * 250, T + 20); });
 }
 
-// ---------------------------------------------------------------- spectrum bars
+// ---------------------------------------------------------------- spectrum + confetti
 const spec = $('spec'), sg = spec.getContext('2d');
 function drawSpectrum(t) {
   const bands = spectrum[clamp(Math.round(t * FPS), 0, spectrum.length - 1)];
-  sg.clearRect(0, 0, 1080, 110);
+  sg.clearRect(0, 0, 1080, 80);
   const n = bands.length, bw = 1080 / n;
-  bands.forEach((v, i) => {
-    const h = 6 + v * 96, hue = 190 - 150 * i / n;
-    sg.fillStyle = `hsl(${hue},85%,60%)`;
-    for (let y = 0; y < h; y += 9) sg.fillRect(i * bw + 3, 104 - y - 6, bw - 6, 6);
+  bands.forEach((v, i) => { sg.fillStyle = `hsl(${190 - 150 * i / n},85%,60%)`; const h = 5 + v * 70; for (let y = 0; y < h; y += 8) sg.fillRect(i * bw + 3, 76 - y - 5, bw - 6, 5); });
+}
+const fg = $('fx').getContext('2d');
+const CONF = Array.from({ length: 160 }, () => ({ dx: (rnd() - 0.5) * 120, vx: (rnd() - 0.5) * 900, vy: -600 - rnd() * 900, c: `hsl(${rnd() * 360},85%,60%)`, d: rnd() * 0.3 }));
+function drawFx(t, anchor) {
+  fg.clearRect(0, 0, VW, VH);
+  const a = t - 38.4;
+  if (a > 0 && anchor) CONF.forEach((p) => {
+    const tt = a - p.d; if (tt < 0) return;
+    const x = anchor[0] + p.dx + p.vx * tt, y = anchor[1] - 60 + p.vy * tt + 900 * tt * tt;
+    fg.fillStyle = p.c; fg.fillRect(Math.round(x / 8) * 8, Math.round(y / 8) * 8, 10, 10);
   });
 }
 
-// ---------------------------------------------------------------- mascot
-const BUBBLES = [
-  [8.6, 10.0, '先画个截面 ✎'], [10.4, 12.4, '拉伸 100 mm ⇧'], [12.6, 13.9, '刷上漆膜'],
-  [14.6, 16.6, '剥漆 10 mm ✂'], [17.6, 19.6, '开焊！⚡'], [19.8, 22.4, '1400 ℃，好烫 🔥'],
-  [23.6, 27.6, '漆皮边界才 253 ℃ ✓'], [28.6, 32, '搞定 ✓'],
+// ---------------------------------------------------------------- mascot choreography
+const BUB = [
+  [2.6, 4.0, 'MAX！冲 ✦'], [5.8, 7.8, '先画两个 2×3.2'], [8.4, 10.4, '拉伸 100，起飞～'], [11.0, 12.4, '材质：铜 ✓'],
+  [12.8, 14.6, '剥漆 10 mm ✂'], [15.0, 16.8, '两根并好啦'], [17.6, 19.4, '划网格 64,000 节点'], [20.1, 21.7, '求解中… 别催 ⏳'], [21.9, 22.9, '收敛 ✓'],
+  [23.0, 23.7, '要开焊了，闪！'], [24.4, 26.8, '钥匙孔！2500 ℃ 🔥'], [28.4, 30.8, '漆皮边界 400 ℃ ⚠'],
+  [31.6, 33.6, '看，这就是钥匙孔'], [33.8, 35.8, '熔深 2.5 mm，焊透 ✓'], [38.4, 42, '焊好啦！✓'],
 ];
-function mascot(t) {
-  const m = $('mascot'), b = $('bubble'), rot = m.querySelector('.rot');
-  const show = seg(t, 7.9, 8.4);
-  let x = 80, y = 1560;
-  if (t > 17) { x = lerp(80, 60, seg(t, 17, 17.6)); y = lerp(1560, 1232, seg(t, 17, 17.6)); }
-  if (t > 28) { x = lerp(60, 465, seg(t, 28, 28.8)); y = lerp(1232, 800, seg(t, 28, 28.8)); }
-  const hop = Math.abs(Math.sin(t * Math.PI * 2)) * 26 * (t > 28.6 ? 1.6 : 1);   // hop on the beat (120 BPM)
-  const squash = 1 + 0.08 * Math.cos(t * Math.PI * 4);
-  const scale = t > 28 ? lerp(1, 1.35, seg(t, 28, 28.8)) : 1;
-  m.style.opacity = show;
-  m.style.transform = `translate(${x}px, ${y - hop}px) scale(${scale * squash}, ${scale / squash})`;
-  const spin = (t > 17.4 && t < 21) ? t * 300 : t * 40;
-  rot.setAttribute('transform', `rotate(${spin})`);
-  const cur = BUBBLES.find(([a, c]) => t >= a && t < c);
-  if (cur) {
-    const [a, c, txt] = cur, op = fade(t, a, a + 0.2, c - 0.2, c);
-    b.textContent = txt; b.style.opacity = op;
-    b.style.transform = `translate(${x + 150 * scale}px, ${y - hop - 30}px) scale(${0.8 + 0.2 * op})`;
+function mascotPose(t) {
+  const o = { ps: 9, x: 142, y: 268, walk: false, legFrame: Math.floor(t * 8) % 2, blink: (t % 2.7) < 0.12 };
+  const at = (x, y, z) => proj(x, y, z);
+  const hop = (u) => -Math.sin(Math.PI * clamp(u)) * 120;
+  if (t < S.sw) {
+    if (t > 2.45 && t < 3.2) { o.y += hop((t - 2.45) / 0.4) * 0.6 + hop((t - 2.85) / 0.35) * 0.4; o.sparkle = true; o.armsUp = true; }
+    if (t > 4.6) { const u = seg(t, 4.6, 5.4); o.x = lerp(142, 640, u); o.y = lerp(268, 1500, u) + hop(u) * 2.5; }
+    o.ps = lerp(9, 7, seg(t, 4.6, 5.4));
+  } else if (t < S.ans) {
+    o.ps = 7;
+    if (t < 6.8) { const u = seg(t, S.sw + 0.2, 6.8), sk = at(1, 0, 1.0); o.x = lerp(640, sk[0], u); o.y = lerp(1500, sk[1], u); o.walk = u > 0 && u < 1; }
+    else if (t < 10.6) { const h = 100 * Math.pow(seg(t, 8.2, 10.4), 1.3); [o.x, o.y] = at(1, h, 0.6); if (t > 8.2 && t < 10.4) o.armsUp = true; }
+    else if (t < 12.8) { [o.x, o.y] = at(1, 100, 0.6); }
+    else if (t < 14.8) { const u = seg(t, 12.8, 13.3), a = at(1, 100, 0.6), b = at(-3.4, 92, 0); o.x = lerp(a[0], b[0], u); o.y = lerp(a[1], b[1], u) + hop(u); }
+    else { const u = seg(t, 14.8, 15.3), a = at(-3.4, 92, 0), b = at(1, 100, 0.6); o.x = lerp(a[0], b[0], u); o.y = lerp(a[1], b[1], u) + hop(u); }
+  } else if (t < S.weld) {
+    o.ps = 7; o.hat = true;
+    if (t < 19.8) [o.x, o.y] = at(1, 100, 0.6);
+    else { const u = seg(t, 19.8, 20.2), a = at(1, 100, 0.6); o.x = lerp(a[0], 900, u); o.y = lerp(a[1], 762, u) + hop(u); }
+    if (t > 21.8) o.armsUp = (t * 4 | 0) % 2 === 0;
+  } else if (t < S.sec) {
+    o.ps = 7; o.goggles = true;
+    const top = at(1.2, 100, 0.6);
+    if (t < 23.6) [o.x, o.y] = top;
+    else if (t < 24.1) { const u = (t - 23.6) / 0.5; o.x = lerp(top[0], 300, u); o.y = lerp(top[1], 1250, u) + hop(u) * 1.5; }
+    else if (t < 28.2) { [o.x, o.y] = [300, 1250]; o.hot = (t * 6 | 0) % 2 === 0 && t < 27.4; o.sweat = true; o.sweatPh = (t * 4) % 2; }
+    else { const p = at(-2.6, 90, 1.6), u = seg(t, 28.2, 28.9); o.x = lerp(300, p[0] - 50, u); o.y = lerp(1250, p[1] + 70, u); o.walk = u > 0 && u < 1; }
+  } else if (t < S.end) {
+    o.ps = 7; o.goggles = true; [o.x, o.y] = [300, 1420];
+    if (t > 33.8) o.armsUp = (t * 4 | 0) % 2 === 0;
+  } else {
+    o.ps = 8; o.chute = t < 38.3;
+    const land = at(0, 100.85, 0), u = seg(t, 36.3, 38.3);
+    o.x = lerp(720, land[0], u) + Math.sin(t * 3) * 30 * (1 - u); o.y = lerp(200, land[1], u);
+    if (t > 38.3) { o.armsUp = true; o.y += hop(((t - 38.3) * 2) % 1) * 0.4; }
+  }
+  o.bubble = BUB.find(([a, c]) => t >= a && t < c);
+  return o;
+}
+function drawMascot(t) {
+  const o = mascotPose(t), m = $('mascot'), b = $('bubble');
+  setHTML(m, mascotSVG(o));
+  m.style.transform = `translate(${o.x - 8 * o.ps}px, ${o.y - 26 * o.ps}px)`;
+  if (o.bubble) {
+    const [a, c, txt] = o.bubble, op = fade(t, a, a + 0.15, c - 0.15, c);
+    if (b.textContent !== txt) b.textContent = txt;
+    b.style.opacity = op;
+    const bx = clamp(o.x + 60, 20, VW - 30 - b.offsetWidth), by = o.y - 12 * o.ps - 80;
+    b.style.transform = `translate(${bx}px, ${by}px) scale(${0.85 + 0.15 * op})`;
   } else b.style.opacity = 0;
+  return o;
 }
 
-// ---------------------------------------------------------------- Claude "Max think" UI
-const PROMPT = $('uBubble').textContent;
-const thoughtEls = [...$('thoughts').children];
-function claudeUI(t) {
-  const ui = $('claudeUI');
-  const out = seg(t, 7.4, 8.1);
-  ui.style.opacity = 1 - out;
-  ui.style.transform = `scale(${1 - 0.05 * out}) translateY(${-60 * out}px)`;
+// ---------------------------------------------------------------- Claude Code
+const TASK = '两根 2×3.2 扁铜线，高 100，顶部剥漆 10 mm，并排焊在一起，做焊接热仿真';
+function claudeCode(t) {
+  const out = seg(t, 4.8, S.sw + 0.2);
+  show('cc', 1 - out);
+  $('cc').style.transform = `scale(${1 + 0.06 * out})`;
   if (out >= 1) return;
-  const typed = Math.floor(PROMPT.length * clamp((t - 0.3) / 1.9));
-  const sent = t >= 2.35;
-  $('typing').innerHTML = sent ? '<span style="color:#77736b">回复 Claude…</span>' : PROMPT.slice(0, typed) + (Math.floor(t * 3) % 2 ? '|' : '');
-  $('uBubble').style.opacity = seg(t, 2.35, 2.6);
-  $('uBubble').style.transform = `translateY(${30 * (1 - seg(t, 2.35, 2.6))}px)`;
-  $('aRow').style.opacity = seg(t, 2.6, 2.9);
-  const thinking = t < 6.6;
-  $('thinkIcon').querySelector('.rot').setAttribute('transform', `rotate(${thinking ? t * 220 : 660 * 6.6 / 3})`);
-  $('thinkIcon').style.transform = `scale(${thinking ? 1 + 0.1 * Math.sin(t * 10) : 1})`;
-  $('thinkTxt').textContent = thinking ? '深度思考中…' : '✓ 已深度思考';
-  $('thinkTxt').style.backgroundPosition = `${(-t * 120) % 300}% 0`;
-  $('thinkTime').textContent = `${Math.max(0, Math.floor((Math.min(t, 6.6) - 2.6) * 4.2))} 秒`;
-  thoughtEls.forEach((e, i) => { const a = 2.9 + i * 0.5; e.style.opacity = seg(t, a, a + 0.3); });
-  const ans = '好的，开始建模并求解 ⚙️';
-  $('answer').textContent = ans.slice(0, Math.floor(ans.length * clamp((t - 6.7) / 0.6)));
+  const sent = t > 3.05;
+  const typed = Math.floor(TASK.length * clamp((t - 0.25) / 1.3));
+  $('ccTyped').innerHTML = sent ? `<span class="grey">${TASK}</span>` : TASK.slice(0, typed) + ((t * 3 | 0) % 2 ? '▌' : '');
+  show('effort', fade(t, 1.6, 1.75, 3.0, 3.2));
+  const lvl = clamp(Math.floor((t - 1.8) / 0.17), 0, 4);
+  [...$('effLevels').children].forEach((e, i) => {
+    const sel = i === lvl && t > 1.8;
+    e.style.backgroundColor = sel ? '#3a2d27' : 'transparent';
+    if (i < 4) e.style.color = sel ? '#f0c2ad' : '#77736b';
+    else e.style.color = sel ? 'transparent' : '#77736b';
+  });
+  $('effFill').style.width = `${t > 1.8 ? 20 + lvl * 20 : 0}%`;
+  $('effMax').style.backgroundPosition = `${(-t * 160) % 300}% 0`;
+  $('effMax').style.transform = lvl === 4 ? `scale(${1.15 + 0.08 * Math.sin(t * 20)})` : 'none';
+  setHTML($('ccEffTag'), t > 2.5 ? '<span style="color:#ffb37a">● max effort ✦</span>' : 'effort: medium');
+  [...$('ccLog').children].forEach((e, i) => { e.style.opacity = seg(t, 3.1 + i * 0.28, 3.25 + i * 0.28); });
+  const spinC = '·✢✳✶✻✽';
+  $('spin').textContent = spinC[(t * 10 | 0) % spinC.length];
+  $('ccTok').textContent = `(${Math.max(0, t - 3.1).toFixed(0)}s · ↑ ${(Math.max(0, t - 3.1) * 2.6).toFixed(1)}k tokens · max effort)`;
+  $('ccPrompt').style.borderColor = t > 2.5 && !sent ? '#d97757' : '#5a5853';
 }
 
 // ---------------------------------------------------------------- main render
-const STEPS = [['sketch', 8.0], ['extrude', 10.0], ['coat', 12.5], ['strip', 13.9], ['weld', 16.6]];
-function simTimeAt(t) {
-  const tc = t - 17.0;
+function simTimeWeld(t) {
+  const tc = t - (S.weld + 0.6);
   if (tc < 0) return 0;
-  if (tc < 4) return meta.t_on * tc / 4;                              // slow motion ×33
-  return meta.t_on + (3.0 - meta.t_on) * Math.pow(clamp((tc - 4) / 7), 1.6);
+  if (tc < 4) return meta.t_on * tc / 4;
+  return meta.t_on + (3.0 - meta.t_on) * Math.pow(clamp((tc - 4) / 3.4), 1.6);
 }
+function simTimeSec(t) {
+  if (t < S.sec + 0.6) return 0.003;
+  if (t < 35.0) return lerp(0.003, meta.t_on, (t - S.sec - 0.6) / (35.0 - S.sec - 0.6));
+  return lerp(meta.t_on, 0.32, seg(t, 35.0, 35.9));
+}
+const SW_STEPS = [['sketch', S.sw], ['extrude', 8.0], ['mat', 10.6], ['split', 12.6], ['done', 14.6]];
+let clipOn = null;
 
 window.render = (t) => {
+  used.clear();
   setCamera(t);
-  const dark = seg(t, 16.6, 17.4);
-  $('bgLight').style.opacity = 1 - dark;
-  $('bgDark').style.opacity = dark;
+  const inAns = t >= S.ans && t < S.weld, inWeld = t >= S.weld && t < S.sec, inSec = t >= S.sec && t < S.end, inEnd = t >= S.end;
+  show('bgSW', 1 - seg(t, S.ans - 0.3, S.ans + 0.2));
+  show('bgAns', fade(t, S.ans - 0.3, S.ans + 0.2, S.weld - 0.3, S.weld + 0.2));
+  show('bgDark', fade(t, S.weld - 0.3, S.weld + 0.2, S.end - 0.3, S.end + 0.3));
+  show('bgBeauty', seg(t, S.end - 0.3, S.end + 0.3));
 
-  // CAD chrome
-  const cadOp = fade(t, 7.9, 8.3, 16.6, 17.2);
-  $('cad').style.opacity = cadOp;
-  let step = null; STEPS.forEach(([k, a]) => { if (t >= a) step = k; });
-  document.querySelectorAll('.tool').forEach((e) => e.classList.toggle('on', e.dataset.k === step));
-  document.querySelectorAll('#tree div').forEach((e) => {
-    const s = STEPS.find(([k]) => k === e.dataset.k);
-    e.style.opacity = t >= s[1] ? 1 : 0.25; e.classList.toggle('on', e.dataset.k === step);
-  });
-  $('status').textContent = { sketch: '前视基准面 · 绘制矩形 2.0 × 3.2', extrude: '拉伸 · 深度 100 mm', coat: '漆膜 · 聚酰亚胺 · 厚 0.09 mm',
-    strip: '剥漆 · 顶部 10 mm', weld: '网格划分 · 32,000 节点' }[step] || '';
-
-  // sketch
-  grid.material.opacity = fade(t, 7.9, 8.4, 11.0, 12.0) * 0.9;
-  grid.visible = grid.material.opacity > 0.01;
-  const sk = seg(t, 8.3, 9.6);
-  const corners = [[-1, 0, -1.6], [1, 0, -1.6], [1, 0, 1.6], [-1, 0, 1.6], [-1, 0, -1.6]];
-  const drawn = [corners[0]];
-  for (let i = 1; i < 5; i++) {
-    const u = clamp(sk * 4 - (i - 1));
-    if (u <= 0) break;
-    drawn.push(corners[i - 1].map((x, k) => lerp(x, corners[i][k], u)));
+  // ---- CAD UI
+  const swOp = fade(t, S.sw - 0.1, S.sw + 0.3, S.ans - 0.3, S.ans + 0.1);
+  show('sw', swOp);
+  let step = null; SW_STEPS.forEach(([k, a]) => { if (t >= a) step = k; });
+  if (swOp > 0) {
+    document.querySelectorAll('#swTabs span').forEach((e) => e.classList.toggle('on', e.dataset.k === (step === 'sketch' ? 'sketch' : 'feat')));
+    document.querySelectorAll('.cmd').forEach((e) => e.classList.toggle('on', !!e.dataset.k && e.dataset.k === step));
+    setHTML($('swTree'), TREE.map(([n, c, at]) => {
+      if (at > t) return '';
+      const name = n === 'MAT' ? (t > 10.9 ? '材质 &lt;无氧铜 C11000&gt;' : '材质 &lt;未指定&gt;') : n;
+      const hl = (n === '草图1' && step === 'sketch') || (n === '凸台-拉伸1' && t > 9.9 && t < 10.6) || (n === 'MAT' && step === 'mat') || (n === '分割线1' && step === 'split');
+      return `<div class="${hl ? 'hl' : ''}"><span class="ic" style="background:${c}"></span>${name}</div>`;
+    }).join(''));
+    const pmOn = t > 8.0 && t < 9.95;
+    show('swPM', pmOn ? 1 : 0); show('swTree', pmOn ? 0 : 1);
+    $('pmD').textContent = `${(100 * seg(t, 8.2, 9.4)).toFixed(2)}mm`;
+    show('swCorner', (t > S.sw + 0.3 && t < 7.9) ? 1 : 0);
+    $('swStat').textContent = { sketch: '草图1 · 上视基准面 · 矩形 ×2', extrude: '凸台-拉伸1 · 给定深度 100 mm', mat: '编辑材质 · 无氧铜 C11000', split: '分割线1 · 剥漆 10 mm', done: '两根扁铜线 · 并排 · 顶部剥漆 10 mm' }[step] || '';
   }
-  const skOp = 1 - seg(t, 10.6, 11.2);
-  svgEl('sketch', 'polyline', { points: pts(drawn.map((p) => proj(...p))), stroke: '#1d5bd8', 'stroke-width': 6, fill: 'none', opacity: skOp * seg(t, 8.2, 8.4), 'stroke-linejoin': 'round' });
-  const dOp = fade(t, 9.4, 9.8, 10.4, 10.9);
-  dim('dw', [-1, 0, 2.7], [1, 0, 2.7], [[-1, 0, 1.6], [-1, 0, 3.0]], [[1, 0, 1.6], [1, 0, 3.0]], '2.0', dOp);
-  dim('dd', [2.1, 0, -1.6], [2.1, 0, 1.6], [[1, 0, -1.6], [2.4, 0, -1.6]], [[1, 0, 1.6], [2.4, 0, 1.6]], '3.2', dOp);
 
-  // extrude
-  const h = 100 * Math.pow(seg(t, 10.0, 12.3), 1.3);
-  copper.visible = h > 0.05;
-  copper.scale.y = Math.max(h, 0.05) / 100;
-  const hOp = fade(t, 10.1, 10.4, 13.2, 13.6);
-  dim('dh', [9, 0, 0], [9, h, 0], [[1.2, 0, 0], [10, 0, 0]], [[1.2, h, 0], [10, h, 0]], `H ${h.toFixed(h > 99.9 ? 0 : 1)}`, hOp);
+  // sketch: two rectangles
+  grid.material.opacity = fade(t, S.sw, S.sw + 0.4, 9.6, 10.4) * 0.9;
+  grid.visible = grid.material.opacity > 0.01;
+  const skLine = (id, x0, prog, defined) => {
+    const c = [[x0, 0, -1.6], [x0 + 2, 0, -1.6], [x0 + 2, 0, 1.6], [x0, 0, 1.6], [x0, 0, -1.6]], d = [c[0]];
+    for (let i = 1; i < 5; i++) { const u = clamp(prog * 4 - (i - 1)); if (u <= 0) break; d.push(c[i - 1].map((v, k) => lerp(v, c[i][k], u))); }
+    svgEl(id, 'polyline', { points: pts(d.map((p) => proj(...p))), stroke: defined ? '#111' : '#1d5bd8', 'stroke-width': 4, fill: 'none', opacity: fade(t, S.sw + 0.3, S.sw + 0.4, 8.4, 8.8), 'stroke-linejoin': 'round' });
+  };
+  if (t > S.sw && t < 8.8) { skLine('sk1', -2, seg(t, 5.6, 6.4), t > 7.4); skLine('sk2', 0, seg(t, 6.3, 7.0), t > 7.4); }
+  const dOp = fade(t, 7.0, 7.3, 7.9, 8.3);
+  dim('dw1', [-2, 0, 2.6], [0, 0, 2.6], [[-2, 0, 1.6], [-2, 0, 2.9]], [[0, 0, 1.6], [0, 0, 2.9]], '2', dOp);
+  dim('dw2', [0, 0, 2.6], [2, 0, 2.6], [[0, 0, 1.6], [0, 0, 2.9]], [[2, 0, 1.6], [2, 0, 2.9]], '2', dOp);
+  dim('dd', [3.0, 0, -1.6], [3.0, 0, 1.6], [[2, 0, -1.6], [3.3, 0, -1.6]], [[2, 0, 1.6], [3.3, 0, 1.6]], '3.2', dOp);
 
-  // enamel coat & strip
-  const coatTop = 100 * seg(t, 12.5, 13.6);
-  const stripTop = lerp(100, 90, seg(t, 14.4, 15.8));
-  const top = t < 14 ? coatTop : stripTop;
-  enamel.visible = top > 0.1;
-  enamel.scale.y = Math.max(top, 0.1);
-  enamel.material.opacity = lerp(0.97, 0.22, seg(t, 16.8, 17.6));
-  const sOp = fade(t, 15.0, 15.4, 16.6, 17.0);
-  dim('ds', [-2.6, 90, 0], [-2.6, 100, 0], [[-1.2, 90, 0], [-3.0, 90, 0]], [[-1.2, 100, 0], [-3.0, 100, 0]], '剥漆 10 mm', sOp, '#c2410c',
-    'font-family:"WenQuanYi Zen Hei";transform:translate(-105%,-50%)');
-
-  // weld / thermal
-  const hudOp = fade(t, 17.0, 17.5, 28.0, 28.6);
-  $('hud').style.opacity = hudOp;
-  const simT = simTimeAt(t);
-  const heatOp = seg(t, 16.8, 17.5);
-  heat.visible = heatOp > 0;
-  copper.material.opacity = 1 - heatOp;
-  copper.visible = copper.visible && heatOp < 1;
-  heat.material.opacity = heatOp;
-  if (heat.visible) paintHeat(simT);
-  const on = t >= 17.4 && simT < meta.t_on;
-  beam.visible = on;
-  beam.material.opacity = 0.55 + 0.25 * Math.sin(t * 90);
-  const Tm = probe('Tmax', simT);
-  glow.visible = t > 17.4 && t < 28.6;
-  const g = clamp((Tm - 300) / 1100);
-  glow.scale.setScalar(1.0 + 4.5 * g * (on ? 1 + 0.1 * Math.sin(t * 60) : 1));
-  glow.material.opacity = g;
-  const spPos = spGeo.attributes.position.array, pulseU = clamp((t - 17.4) / 3.6);
-  sparks.visible = t > 17.4 && t < 21.8;
-  sp.forEach((s, i) => {
-    const age = (pulseU - s.birth) * 3.6;
-    if (age < 0 || age > s.life) { spPos[i * 3 + 1] = -999; return; }
-    spPos[i * 3] = s.vx * age; spPos[i * 3 + 2] = s.vz * age; spPos[i * 3 + 1] = 100.2 + s.vy * age - 25 * age * age;
+  // extrude + materials
+  const h = 100 * Math.pow(seg(t, 8.2, 10.4), 1.3);
+  const yellow = new THREE.Color(0xf5d24a), gray = new THREE.Color(0xb8bec8), cu = new THREE.Color(0xffa060), ansC = new THREE.Color(0x9fb1c4);
+  const resShown = inAns && t > 21.9;
+  wires.forEach(({ mesh, edges }) => {
+    mesh.visible = h > 0.05 && t < S.weld + 0.4 && !resShown;
+    edges.visible = h > 0.05 && t < S.weld + 0.4;
+    mesh.scale.y = edges.scale.y = Math.max(h, 0.05) / 100;
+    const m = mesh.material;
+    if (inAns) { m.color.copy(ansC); m.metalness = 0.1; m.roughness = 0.6; m.envMapIntensity = 1; }
+    else { m.color.copy(t < 9.95 ? yellow : gray.clone().lerp(cu, seg(t, 10.8, 11.4))); m.metalness = t > 10.8 ? lerp(0.3, 0.55, seg(t, 10.8, 11.4)) : 0.3; m.roughness = t > 10.8 ? 0.22 : 0.45; m.envMapIntensity = t > 10.8 ? 2.0 : 1; }
+    m.opacity = (t < 9.95 ? 0.6 : 1) * (1 - seg(t, S.weld - 0.2, S.weld + 0.4));
+    edges.material.opacity = (inAns ? 0.4 : 1) * (1 - seg(t, S.weld - 0.2, S.weld + 0.4));
   });
-  spGeo.attributes.position.needsUpdate = true;
+  dim('dh', [6, 0, 0], [6, h, 0], [[2.2, 0, 0], [7, 0, 0]], [[2.2, h, 0], [7, h, 0]], `${h.toFixed(h > 99.9 ? 0 : 1)}`, fade(t, 8.3, 8.6, 11.2, 11.6));
 
-  $('simt').textContent = `t = ${simT.toFixed(3)} s`;
-  const tag = $('tag');
-  if (simT < meta.t_on) { tag.textContent = '⚡ 焊接中 · 慢放 ×33'; tag.style.background = '#7a2e12'; tag.style.color = '#ffd7b8'; }
-  else { tag.textContent = '❄ 冷却中'; tag.style.background = '#123a52'; tag.style.color = '#bde7ff'; }
+  // enamel + split line
+  const enTop = t < 12.6 ? (t > 11.4 ? 100 : 0) : lerp(100, 90, seg(t, 13.2, 14.4));
+  const enOp = t < 12.6 ? seg(t, 11.4, 11.6) : 1;
+  enamels.forEach((e) => {
+    e.visible = (enTop > 0.1 && !inAns && t < S.sec + 0.3) || inEnd;
+    e.scale.y = inEnd ? 90 : Math.max(enTop, 0.1);
+    e.material.opacity = inEnd ? 1 : enOp * lerp(0.97, 0.22, seg(t, S.weld - 0.2, S.weld + 0.4)) * (inSec ? 1 - seg(t, S.sec, S.sec + 0.3) : 1);
+  });
+  if (t > 12.7 && t < 14.6) {
+    const ring = [[-2.03, 90, -1.63], [2.03, 90, -1.63], [2.03, 90, 1.63], [-2.03, 90, 1.63], [-2.03, 90, -1.63]].map((p) => proj(...p));
+    svgEl('split', 'polyline', { points: pts(ring), stroke: '#c2185b', 'stroke-width': 4, fill: 'none', opacity: fade(t, 12.7, 13.0, 14.2, 14.6) });
+  }
+  dim('ds', [-3.2, 90, 0], [-3.2, 100, 0], [[-2.2, 90, 0], [-3.6, 90, 0]], [[-2.2, 100, 0], [-3.6, 100, 0]], '10', fade(t, 12.9, 13.2, 14.4, 14.8));
 
-  // leader labels
-  const lOp = hudOp * seg(t, 17.6, 18.0);
-  const pTop = proj(0, 100, 0), aTop = [640, 360];
-  svgEl('ldTop', 'polyline', { points: pts([pTop, [aTop[0], aTop[1] + 40], [aTop[0] + 330, aTop[1] + 40]]), stroke: '#ffd7a0', 'stroke-width': 3, fill: 'none', opacity: lOp });
-  svgEl('dotTop', 'circle', { cx: pTop[0], cy: pTop[1], r: 8, fill: '#fff', opacity: lOp });
-  const melt = probe('melt_depth_mm', simT);
-  label('lbTop', `<div class="readout">${Tm.toFixed(0)}<small> ℃</small></div><div style="font-size:28px;color:#ffd7a0">顶面最高温${melt > 0.05 ? ` · 熔池 ${melt.toFixed(1)} mm` : ''}</div>`,
-    [aTop[0] + 165, aTop[1] - 20], `opacity:${lOp};text-align:center`);
-  const pEdge = proj(1, 90, 1.6), aEdge = [640, 1020];
-  const Te = probe('T_edge', simT);
-  svgEl('ldEdge', 'polyline', { points: pts([pEdge, [aEdge[0], aEdge[1] + 40], [aEdge[0] + 330, aEdge[1] + 40]]), stroke: '#4fd1ff', 'stroke-width': 3, fill: 'none', opacity: lOp });
-  svgEl('dotEdge', 'circle', { cx: pEdge[0], cy: pEdge[1], r: 8, fill: '#4fd1ff', opacity: lOp });
-  label('lbEdge', `<div style="font:bold 52px monospace;color:#bdf0ff">${Te.toFixed(0)}<small style="font-size:26px"> ℃</small></div><div style="font-size:28px;color:#4fd1ff">漆皮边界（距顶 10 mm）</div>`,
-    [aEdge[0] + 165, aEdge[1] - 16], `opacity:${lOp};text-align:center`);
-  const ring = [[-1.09, 90, -1.69], [1.09, 90, -1.69], [1.09, 90, 1.69], [-1.09, 90, 1.69], [-1.09, 90, -1.69]].map((p) => proj(...p));
-  svgEl('ring', 'polyline', { points: pts(ring), stroke: '#4fd1ff', 'stroke-width': 3, 'stroke-dasharray': '10 8', fill: 'none', opacity: lOp });
-  drawChart(simT, hudOp);
+  // ---- simulation UI
+  const anOp = fade(t, S.ans - 0.1, S.ans + 0.3, S.weld - 0.3, S.weld + 0.1);
+  show('ans', anOp);
+  meshLines.visible = inAns;
+  meshLines.geometry.setDrawRange(0, Math.floor(meshLines.userData.n * 2 * seg(t, 17.4, 18.6)));
+  if (anOp > 0) {
+    setHTML($('anTree'), ATREE.map(([n, lv, at]) => `<div style="padding-left:${lv * 22}px">${at && t < at ? '<span class="bolt">⚡</span>' : '<span class="ck">✔</span>'}${n}</div>`).join(''));
+    const [dh, rows] = ansDetails(t);
+    $('anDetH').textContent = dh;
+    setHTML($('anDet'), rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join(''));
+    const act = t < 18.8 ? 'mesh' : t < 19.2 ? 'bc' : t < 19.5 ? 'bc2' : t < 20 ? 'bc3' : t < 21.8 ? 'solve' : 'res';
+    document.querySelectorAll('.abtn').forEach((e) => e.classList.toggle('on', e.dataset.k === act));
+    const prog = seg(t, 20.0, 21.7);
+    show('solveDlg', fade(t, 19.95, 20.1, 21.8, 22.0));
+    $('solveFill').style.width = `${prog * 100}%`;
+    $('solveTxt').textContent = prog < 1 ? `正在求解 … ${(prog * 100).toFixed(0)}%　t = ${(3 * prog).toFixed(2)} s` : '求解完成 ✔';
+    drawAnChart(t < 20 ? 0 : prog);
+    const bc = (id, txt, col, p3, at, dx, dy) => {
+      const op = anOp * seg(t, at, at + 0.2) * (1 - seg(t, 21.8, 22.0));
+      if (op <= 0) return;
+      const p = proj(...p3);
+      svgEl(id + 'l', 'polyline', { points: pts([p, [p[0] + dx, p[1] + dy]]), stroke: col, 'stroke-width': 3, fill: 'none', opacity: op });
+      label(id, `<b style="background:${col};color:#fff;padding:0 8px;margin-right:6px">${txt[0]}</b>${txt.slice(1)}`, [p[0] + dx, p[1] + dy],
+        `opacity:${op};transform:translate(0,-50%);background:#fff;color:#222;font-size:22px;padding:4px 10px;border:1px solid ${col}`);
+    };
+    bc('bcA', `A热通量: ${meta.P_abs} W`, '#d32f2f', [0, 100, 0], 19.0, 110, -70);
+    bc('bcB', 'B对流: 25 W/m²·℃', '#f9a825', [2, 92, 1.6], 19.3, 100, 40);
+    bc('bcC', 'C温度: 25 ℃ (夹具)', '#1976d2', [-2, 84, 1.6], 19.6, 90, 100);
+    const Tm = meta.probes.Tmax[meta.probes.t.findIndex((x) => x >= meta.t_on)];
+    setHTML($('anLegend'), t > 21.8
+      ? `<b>A: 瞬态热</b><br>温度<br>类型: 温度　单位: ℃<br>时间: ${meta.t_on} s<div class="bands">${BANDS.slice().reverse().map((c, i) => `<div><i style="background:#${c.getHexString()}"></i>${(Tm - (Tm - 25) * i / 9).toFixed(0)}${i === 0 ? ' 最大' : ''}</div>`).join('')}<div><i style="background:none;border:none"></i>25 最小</div></div>`
+      : `<b>A: 瞬态热</b><br>${t < 18.8 ? '网格' : t < 20 ? '边界条件' : '求解中'}<br>时间: ${t < 20 ? 0 : (3 * prog).toFixed(2)} s`);
+  }
 
-  // summary
-  const sumOp = seg(t, 28.6, 29.3);
-  $('summaryL').style.opacity = sumOp;
-  $('summary').style.transform = `translateY(${60 * (1 - sumOp)}px)`;
+  // ---- heat mesh
+  let simT = 0, mode = null;
+  if (resShown) { simT = meta.t_on; mode = 'bands'; }
+  if (inWeld) { simT = simTimeWeld(t); mode = 'heat'; }
+  if (inSec) { simT = simTimeSec(t); mode = 'heat'; }
+  heat.visible = !!mode;
+  heat.material.opacity = inAns ? seg(t, 21.8, 22.0) : 1;
+  if (mode) paint(simT, mode);
+  if (clipOn !== inSec) { heat.material.clippingPlanes = inSec ? [clipPlane] : []; heat.material.needsUpdate = true; clipOn = inSec; }
+  section.visible = inSec;
+  joint.visible = (h > 99 && !inSec && !inEnd && !resShown);
+  joint.material.color.set(inWeld ? 0x4fd1ff : 0x000000);
+  joint.material.opacity = inWeld ? 0.35 : 0.6;
+
+  // ---- weld effects
+  const on = (inWeld || inSec) && simT > 0.001 && simT < meta.t_on;
+  const kh = probe('keyhole_mm', simT);
+  beam.visible = on;
+  beam.material.opacity = (0.55 + 0.25 * Math.sin(t * 90)) * (inSec ? 0.35 : 1);
+  const Tm = probe('Tmax', simT);
+  const meltW = Math.max(0, ...P.melt_width_mm.slice(0, simFrame(simT)[0] + 1));
+  const beadH = inWeld ? 0.85 * clamp(meltW / 4) : inEnd ? 0.85 : 0;
+  bead.visible = beadH > 0.02;
+  bead.scale.set(2.05, Math.max(beadH, 0.01), 1.65);
+  bead.material = inEnd ? beadCuMat : beadHeatMat;
+  glow.visible = inWeld && Tm > 300;
+  const g = clamp((Tm - 300) / 2200);
+  glow.position.set(0, 100.2 + beadH, 0);
+  glow.scale.setScalar(1.0 + 5 * g * (on ? 1 + 0.1 * Math.sin(t * 60) : 1));
+  glow.material.opacity = g;
+  mouth.visible = mouthRim.visible = on && inWeld && kh > 0.2;
+  mouth.position.set(0, 100.03 + beadH, 0); mouthRim.position.copy(mouth.position);
+  mouthRim.material.opacity = 0.7 + 0.3 * Math.sin(t * 50);
+  ripples.forEach((r, i) => {
+    const ph = ((t * 1.6 + i / 3) % 1);
+    r.visible = inWeld && simT > 0.03 && simT < meta.t_on + 0.08;
+    r.position.set(0, 100.02 + beadH * 0.98, 0); r.scale.setScalar(0.5 + ph * 1.4); r.material.opacity = (1 - ph) * 0.6;
+  });
+  for (const [ps, kind] of [[sparks, 'spark'], [plume, 'plume']]) {
+    const arr = ps.geometry.attributes.position.array;
+    ps.visible = on;
+    ps.userData.list.forEach((s, i) => {
+      const age = ((t * 0.8 + s.birth) % 1) * 1.2;
+      if (kind === 'spark') {
+        if (age > s.life) { arr[i * 3 + 1] = -999; return; }
+        const sp = 8 + s.s * 20;
+        arr[i * 3] = Math.cos(s.a) * sp * 0.6 * age; arr[i * 3 + 2] = Math.sin(s.a) * sp * 0.6 * age; arr[i * 3 + 1] = 100.3 + beadH + (6 + s.vy * 18) * age - 25 * age * age;
+      } else {
+        const r = 0.15 + age * 1.6 * s.s;
+        arr[i * 3] = Math.cos(s.a + age * 3) * r; arr[i * 3 + 2] = Math.sin(s.a + age * 3) * r; arr[i * 3 + 1] = 100.2 + beadH + age * (4 + s.vy * 4);
+      }
+    });
+    ps.geometry.attributes.position.needsUpdate = true;
+  }
+  plume.material.size = inSec ? 0.12 : 0.32;
+  sparks.material.size = inSec ? 0.06 : 0.16;
+
+  // ---- dark HUD
+  const hudOp = fade(t, S.weld, S.weld + 0.4, S.end - 0.3, S.end);
+  show('hud', hudOp);
+  if (hudOp > 0) {
+    $('hTitle').textContent = inSec ? '熔池 · 钥匙孔（中截面）' : '温度 · 激光焊接';
+    $('hSub').textContent = `吸收 ${meta.P_abs} W · 光斑 σ${meta.sig_mm[0]}×${meta.sig_mm[1]} mm · 脉冲 ${meta.t_on} s · 锥形钥匙孔热源`;
+    $('simt').textContent = `t = ${simT.toFixed(3)} s`;
+    const tag = $('tag');
+    if (simT < meta.t_on) { tag.textContent = `⚡ 焊接中 · 慢放 ×${inSec ? 23 : 27}`; tag.style.background = '#7a2e12'; tag.style.color = '#ffd7b8'; }
+    else if (probe('melt_depth_mm', simT) > 0) { tag.textContent = '◐ 凝固中'; tag.style.background = '#5a3b12'; tag.style.color = '#ffe2b8'; }
+    else { tag.textContent = '❄ 冷却中'; tag.style.background = '#123a52'; tag.style.color = '#bde7ff'; }
+    drawChart(simT, inWeld ? hudOp : 0);
+  }
+  if (inWeld) {
+    const lOp = seg(t, S.weld + 0.4, S.weld + 0.8) * (1 - seg(t, S.sec - 0.3, S.sec));
+    const pTop = proj(0, 100 + beadH, 0), aTop = [640, 360];
+    svgEl('ldTop', 'polyline', { points: pts([pTop, [aTop[0], aTop[1] + 40], [aTop[0] + 340, aTop[1] + 40]]), stroke: '#ffd7a0', 'stroke-width': 3, fill: 'none', opacity: lOp });
+    const melt = probe('melt_depth_mm', simT);
+    label('lbTop', `<div class="readout">${Tm.toFixed(0)}<small> ℃</small></div><div style="font-size:27px;color:#ffd7a0">${kh > 0.1 ? `钥匙孔 ${kh.toFixed(1)} mm · ` : ''}${melt > 0.05 ? `熔池 ${melt.toFixed(1)} mm` : '最高温'}</div>`,
+      [aTop[0] + 170, aTop[1] - 20], `opacity:${lOp};text-align:center`);
+    const pEdge = proj(2, 90, 1.6), aEdge = [640, 1020], Te = probe('T_edge', simT), warn = Te > 300;
+    const ec = warn ? '#ffb86b' : '#4fd1ff';
+    svgEl('ldEdge', 'polyline', { points: pts([pEdge, [aEdge[0], aEdge[1] + 40], [aEdge[0] + 340, aEdge[1] + 40]]), stroke: ec, 'stroke-width': 3, fill: 'none', opacity: lOp });
+    label('lbEdge', `<div style="font:bold 50px monospace;color:${ec}">${Te.toFixed(0)}<small style="font-size:26px"> ℃${warn ? ' ⚠' : ''}</small></div><div style="font-size:27px;color:${ec}">漆皮边界（距顶 10 mm）</div>`,
+      [aEdge[0] + 170, aEdge[1] - 16], `opacity:${lOp};text-align:center`);
+    const ring = [[-2.03, 90, -1.63], [2.03, 90, -1.63], [2.03, 90, 1.63], [-2.03, 90, 1.63], [-2.03, 90, -1.63]].map((p) => proj(...p));
+    svgEl('ring', 'polyline', { points: pts(ring), stroke: ec, 'stroke-width': 3, 'stroke-dasharray': '10 8', fill: 'none', opacity: lOp });
+  }
+  if (inSec) {
+    const sOp = seg(t, S.sec + 0.3, S.sec + 0.7) * (1 - seg(t, S.end - 0.3, S.end));
+    const prof = poolProfile(simT);
+    const maxD = Math.max(...prof.map((p) => p[2]));
+    if (maxD > 0) {
+      const ptsB = [[-2, 100, 0], ...prof.map(([x, y]) => [x, y, 0.01]), [2, 100, 0]].map((p) => proj(...p));
+      svgEl('pool', 'polyline', { points: pts(ptsB), stroke: '#ffffff', 'stroke-width': 4, 'stroke-dasharray': '12 8', fill: 'none', opacity: sOp });
+      label('poolT', '熔池边界 1083 ℃', proj(1.45, 100 - maxD - 0.35, 0), `opacity:${sOp};font-size:26px;color:#fff`);
+    }
+    if (kh > 0.1) {
+      const wob = 0.04 * Math.sin(t * 40);
+      const cav = [[-0.48, 100], [-0.3 + wob, 100 - kh * 0.5], [-0.14, 100 - kh * 0.9], [0, 100 - kh], [0.14, 100 - kh * 0.9], [0.3 - wob, 100 - kh * 0.5], [0.48, 100]].map(([x, y]) => proj(x, y, 0.02));
+      svgEl('kh', 'polygon', { points: pts(cav), fill: '#120804', stroke: '#fff3c4', 'stroke-width': 5, filter: 'url(#glowF)', opacity: sOp });
+      const tip = proj(0, 100 - kh, 0), aK = [700, 700];
+      svgEl('khL', 'polyline', { points: pts([tip, [aK[0] - 20, aK[1]], [aK[0] + 300, aK[1]]]), stroke: '#fff3c4', 'stroke-width': 3, fill: 'none', opacity: sOp });
+      label('khT', `钥匙孔 ${kh.toFixed(1)} mm`, [aK[0] + 140, aK[1] - 30], `opacity:${sOp};font-size:34px;color:#fff3c4;font-weight:bold`);
+      [-1, 1].forEach((sd) => {
+        const dd = Math.max(maxD, 0.8);
+        const c = proj(sd * 1.15, 100 - dd * 0.45, 0.02), r = proj(sd * 1.15 + 0.55, 100 - dd * 0.45, 0.02);
+        const rx = Math.abs(r[0] - c[0]), ry = rx * dd / 1.4;
+        svgEl('flow' + sd, 'ellipse', { cx: c[0], cy: c[1], rx, ry, fill: 'none', stroke: '#7cf2c8', 'stroke-width': 4, 'stroke-dasharray': '18 14', 'stroke-dashoffset': (sd * t * 160).toFixed(0), opacity: sOp * 0.9 });
+      });
+      label('flowT', '熔池流动（示意）', proj(-1.15, 99.15 - Math.max(maxD, 0.8) * 0.9, 0), `opacity:${sOp * 0.9};font-size:26px;color:#7cf2c8`);
+    }
+    const dmax = Math.max(maxD, ...P.melt_depth_mm.slice(0, simFrame(simT)[0] + 1));
+    dim('dMelt', [2.45, 100, 0], [2.45, 100 - Math.max(dmax, 0.01), 0], [[2.05, 100, 0], [2.65, 100, 0]], [[2.05, 100 - dmax, 0], [2.65, 100 - dmax, 0]],
+      `熔深 ${dmax.toFixed(1)}`, sOp * (dmax > 0.2 ? 1 : 0), '#ffffff', 'transform:translate(-112%,-50%)');
+    label('fuse', meltW >= 3.9 ? '两根全熔合 ✓ 熔宽 4.0 mm' : `熔宽 ${meltW.toFixed(1)} mm`, proj(0, 100.5, 0), `opacity:${sOp};font-size:34px;font-weight:bold;color:#7cf2c8;transform:translate(-50%,-100%)`);
+    label('wire1', '铜线 1', proj(-1, 95, 0), `opacity:${sOp * 0.8};font-size:30px;color:#cfe8f2`);
+    label('wire2', '铜线 2', proj(1, 95, 0), `opacity:${sOp * 0.8};font-size:30px;color:#cfe8f2`);
+  }
+
+  // ---- beauty / summary
+  rim.intensity = inEnd ? 2.2 : 0;
+  key.intensity = inEnd ? 2.0 : 1.6;
+  if (inEnd) {
+    wires.forEach(({ mesh, edges }) => { mesh.visible = true; edges.visible = false; mesh.scale.y = 1; mesh.material.color.set(0xffa060); mesh.material.opacity = 1; mesh.material.metalness = 0.6; mesh.material.roughness = 0.22; mesh.material.envMapIntensity = 2; });
+    heat.visible = false;
+  }
+  show('summaryL', seg(t, 38.6, 39.2));
+  $('summary').style.transform = `translateY(${60 * (1 - seg(t, 38.6, 39.2))}px)`;
+  $('sKh').textContent = meta.keyhole_max.toFixed(1);
   $('sTmax').textContent = meta.Tmax_overall.toFixed(0);
   $('sMelt').textContent = meta.melt_depth_max.toFixed(1);
+  $('sWid').textContent = meta.melt_width_max.toFixed(1);
   $('sEdge').textContent = meta.T_edge_max.toFixed(0);
-  $('s80').textContent = meta.T_80_max.toFixed(0);
 
-  claudeUI(t);
-  mascot(t);
+  for (const e of ov.children) if (e.id && !used.has(e.id)) e.setAttribute('opacity', 0);
+  for (const e of labels.children) if (!used.has(e.id)) e.style.opacity = 0;
+
+  claudeCode(t);
+  const mo = drawMascot(t);
+  drawFx(t, inEnd ? [mo.x, mo.y] : null);
   drawSpectrum(t);
-  $('spec').style.opacity = 0.9;
   renderer.render(scene, camera);
 };
 window.META = { FPS, DURATION };

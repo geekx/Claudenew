@@ -1,4 +1,4 @@
-"""Original upbeat 'positive' ukulele-pop loop (C - G - Am - F, 120 BPM), 32 s.
+"""Original upbeat 'positive' ukulele-pop loop (C - G - Am - F, 120 BPM), 42 s.
 
 Ukulele = Karplus-Strong strums, plus snaps, whistle lead, glockenspiel, bass, kick, claps.
 Writes data/music.wav (44.1 kHz stereo) and data/spectrum.json (bar heights per video frame).
@@ -12,7 +12,7 @@ SR = 44100
 BPM = 120
 BEAT = 60 / BPM
 BAR = 4 * BEAT
-DUR = 32.0
+DUR = 42.0
 N = int(SR * DUR)
 rng = np.random.default_rng(7)
 L = np.zeros(N)
@@ -156,7 +156,7 @@ for b in range(bars):
         else:
             clap(t0 + q * BEAT)
         hat(t0 + q * BEAT + BEAT / 2)
-    if 2 <= b < 10:
+    if 2 <= b < 10 or 14 <= b < 18:
         mel = MEL_A if (b // 2) % 2 else MEL_B
         if b % 2 == 0:
             for off, n, d in mel:
@@ -166,6 +166,22 @@ for b in range(bars):
             glock(GLK[(b % 4) * 4 + q], t0 + q * BEAT)
         for q in range(4):
             snap(t0 + q * BEAT + BEAT * 0.75)
+
+
+
+def whoosh(t, dur=0.6, g=0.12):
+    n = int(dur * SR)
+    noise = rng.uniform(-1, 1, n)
+    sm = np.convolve(noise, np.ones(6) / 6, "same")
+    e = np.sin(np.linspace(0, np.pi, n)) ** 2
+    add((noise - sm) * e, t - dur * 0.6, g, pan=-0.3)
+    add(sm * e, t - dur * 0.6, g * 1.5, pan=0.3)
+
+
+for tw in (5.2, 17.0, 23.0, 31.0, 36.0):          # scene transitions
+    whoosh(tw)
+for i, n in enumerate(["C6", "E6", "G6", "C7", "E7"]):  # 'max effort' sparkle
+    glock(n, 2.45 + i * 0.06, 0.12)
 
 mix = np.stack([L, R], 1)
 # soft limiter + fades
